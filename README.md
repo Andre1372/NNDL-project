@@ -13,6 +13,9 @@ git clone https://github.com/Andre1372/NNDL-project
 
 ```bash
 # Creare virtual environment
+# Su Linux/Mac:
+python3 -m venv venv_deep
+# Su Windows:
 python -m venv venv_deep
 
 # Attivare virtual environment
@@ -20,6 +23,13 @@ python -m venv venv_deep
 source venv_deep/bin/activate
 # Su Windows:
 venv_deep\Scripts\activate
+
+# Verificare l'attivazione
+# Su Linux/Mac:
+command -v python3
+# Su Windows:
+Get-Command python
+
 ```
 
 ### 2. Installare le dipendenze

@@ -1,3 +1,0 @@
-# Ignore all data files but keep the directory structure
-*
-!.gitignore
