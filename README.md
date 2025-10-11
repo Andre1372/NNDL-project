@@ -4,45 +4,71 @@ Progetto per il corso di Neural Networks and Deep Learning.
 
 ## Setup
 
-Dopo aver clonato la repository con
+Dopo aver clonato la repository con:
 ```bash
 git clone https://github.com/Andre1372/NNDL-project
 ```
 
 ### 1. Creare il virtual environment
 
+#### Windows 
 ```bash
 # Creare virtual environment
-# Su Linux/Mac:
-python3 -m venv venv_deep
-# Su Windows:
 python -m venv venv_deep
 
 # Attivare virtual environment
-# Su Linux/Mac:
-source venv_deep/bin/activate
-# Su Windows:
 venv_deep\Scripts\activate
 
 # Verificare l'attivazione
-# Su Linux/Mac:
-command -v python3
-# Su Windows:
 Get-Command python
+```
+
+#### Mac/Linux
+```bash
+# Creare virtual environment
+python3 -m venv venv_deep
+
+# Attivare virtual environment
+source venv_deep/bin/activate
+
+# Verificare l'attivazione
+command -v python3
 ```
 
 Prima di continuare è necessario associare il virtual environment `venv_deep` alla cartella su VS Code. Per farlo, apri il Command Palette con `Ctrl + Shift + P` (Windows/Linux) o `Cmd + Shift + P` (macOS). Digita `Python: Select Interpreter` e seleziona l'environment appena creato.
 
 ### 2. Installare le dipendenze
 
+Per il progetto sono necessarie le seguenti estensioni di VS Code:
+- Python
+- Jupyter
+- LaTeX Workshop
+
+#### Windows
+Prima di tutto verificare che versione cuda si possiede sulla GPU NVIDIA attraverso il comando `nvidia-smi`. In seguito sul sito `https://pytorch.org/get-started/locally/` si può ottenere il comando completo del tipo:
+```bash
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+```
+In questo caso sostituire la riga 2 di `requirements.txt` con:
+```bash
+--index-url https://download.pytorch.org/whl/cu126
+```
+Infine digitare (potrebbe metterci qualche minuto):
 ```bash
 pip install -r requirements.txt
 ```
 
-Inoltre per il progetto sono necessarie le seguenti estensioni:
-- Pylance
-- Jupyter
-- LaTeX Workshop
+#### Mac
+
+Che io sappia non è possibile sfruttare la GPU, quindi cancellare la riga 2 di `requirements.txt`.
+Infine digitare (potrebbe metterci qualche minuto):
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Test per verificare l'installazione
+
+È possibile verificare il setup del progetto runnando il file `hardware_test.py` per testare la potenza di calcolo dell'hardware.
 
 ## Struttura del progetto
 
@@ -55,13 +81,6 @@ NNDL-project/
 ├── report/           # Report LaTeX
 └── requirements.txt  # Dipendenze Python
 ```
-
-## Tecnologie utilizzate
-
-- **PyTorch**: Framework per deep learning
-- **NumPy/Pandas**: Elaborazione dati
-- **Matplotlib**: Visualizzazione
-- **Jupyter**: Ambiente di sviluppo interattivo
 
 ## Report
 

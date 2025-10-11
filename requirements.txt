@@ -1,7 +1,9 @@
 # PyTorch and dependencies for Neural Networks and Deep Learning project
+--index-url https://download.pytorch.org/whl/cu126
+--extra-index-url https://pypi.org/simple
+
 torch>=2.0.0
 torchvision>=0.15.0
-torchaudio>=2.0.0
 
 # Scientific computing
 numpy>=1.24.0
