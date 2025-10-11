@@ -29,8 +29,9 @@ venv_deep\Scripts\activate
 command -v python3
 # Su Windows:
 Get-Command python
-
 ```
+
+Prima di continuare è necessario associare il virtual environment `venv_deep` alla cartella su VS Code. Per farlo, apri il Command Palette con `Ctrl + Shift + P` (Windows/Linux) o `Cmd + Shift + P (macOS)`. `Digita Python: Select Interpreter` e seleziona l'environment appena creato.
 
 ### 2. Installare le dipendenze
 

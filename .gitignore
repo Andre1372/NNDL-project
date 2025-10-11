@@ -1,3 +1,7 @@
 
 # Environment
 venv_deep/
+
+# VSCode settings
+.vscode/
+.json
