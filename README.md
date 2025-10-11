@@ -4,17 +4,22 @@ Progetto per il corso di Neural Networks and Deep Learning.
 
 ## Setup
 
+Dopo aver clonato la repository con
+```bash
+git clone https://github.com/Andre1372/NNDL-project
+```
+
 ### 1. Creare il virtual environment
 
 ```bash
 # Creare virtual environment
-python -m venv venv
+python -m venv venv_deep
 
 # Attivare virtual environment
 # Su Linux/Mac:
-source venv/bin/activate
+source venv_deep/bin/activate
 # Su Windows:
-venv\Scripts\activate
+venv_deep\Scripts\activate
 ```
 
 ### 2. Installare le dipendenze
@@ -28,7 +33,7 @@ pip install -r requirements.txt
 ```
 NNDL-project/
 ├── src/              # Codice sorgente del progetto
-├── data/             # Dataset (non versionato)
+├── data/             # Dataset
 ├── notebooks/        # Jupyter notebooks per esperimenti
 ├── models/           # Modelli salvati
 ├── report/           # Report LaTeX
