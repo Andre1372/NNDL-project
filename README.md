@@ -38,6 +38,11 @@ Get-Command python
 pip install -r requirements.txt
 ```
 
+Inoltre per il progetto sono necessarie le seguenti estensioni:
+- Pylance
+- Jupyter
+- LaTeX Workshop
+
 ## Struttura del progetto
 
 ```
