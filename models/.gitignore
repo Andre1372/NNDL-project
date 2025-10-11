@@ -1,0 +1,6 @@
+# Ignore model files (can be large) but keep the directory structure
+*.pth
+*.pt
+*.ckpt
+*.h5
+!.gitignore
