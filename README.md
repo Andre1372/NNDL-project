@@ -60,7 +60,7 @@ pip install -r requirements.txt
 
 #### Mac
 
-Che io sappia non è possibile sfruttare la GPU, quindi cancellare la riga 2 di `requirements.txt`.
+Forse è possibile sfruttare la GPU integrata nei processori M1, M2, M3, M4 che si chiama mps, quindi cancellare la riga 2 di `requirements.txt`.
 Infine digitare (potrebbe metterci qualche minuto):
 ```bash
 pip install -r requirements.txt
@@ -85,3 +85,4 @@ NNDL-project/
 ## Report
 
 Il report del progetto è disponibile nella cartella `report/` in formato LaTeX.
+Il main file è `template.tex` e contiene tutto lo scheletro del report.

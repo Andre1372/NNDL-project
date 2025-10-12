@@ -1,5 +1,9 @@
 """
-Esempio avanzato per verificare l'installazione di PyTorch e le capacità hardware (GPU o CPU).
+Esempio avanzato per verificare l'installazione di PyTorch e le capacità hardware (GPU o CPU o MPS).
+Compatibile con:
+ - GPU NVIDIA (CUDA)
+ - GPU Apple Silicon (MPS)
+ - CPU generica
 """
 
 import time
@@ -12,9 +16,15 @@ try:
     print(f"PyTorch version: {torch.__version__}\n")
 
     # Selezione automatica del device
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    device = torch.device("cpu")
-    print(f"Device in uso: {device}\n")
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        device_name = torch.cuda.get_device_name(0)
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+        device_name = "Apple GPU (MPS)"
+    else:
+        device = torch.device("cpu")
+        device_name = platform.processor() or "CPU"
 
     if device.type == "cuda":
         # Informazioni sulle GPU
@@ -27,6 +37,10 @@ try:
             print(f"  Memoria totale: {prop.total_memory / (1024 ** 3):.2f} GB")
             print(f"  Multiprocessori: {prop.multi_processor_count}")
             print(f"  Capabilities: {prop.major}.{prop.minor}\n")
+
+    elif device.type == "mps":
+        print("== Informazioni GPU (MPS / Apple Silicon) ==")
+        print("MPS è disponibile e attivo tramite Metal Performance Shaders.\n")
 
     else:
         # Informazioni sulla CPU
@@ -44,7 +58,7 @@ try:
     y = torch.rand(size, size, device=device)
 
     total_start = time.time()
-    flops_per_op = 2 * size**3  # FLOPs per moltiplicazione
+    flops_per_op = 2 * size**3 - size**2  # FLOPs per moltiplicazione
     flops_list = []
 
     for i in range(0, multiplications):
@@ -65,4 +79,4 @@ try:
     print(f"FLOPS medi: {avg_flops/1e12:.2f} TFLOPS")
 
 except ImportError:
-    print("PyTorch non è installato. Eseguire: pip install torch")
+    print("PyTorch non è installato")
