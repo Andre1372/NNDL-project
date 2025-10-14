@@ -1,14 +1,18 @@
 # Source Code Structure
 
-This directory contains the modular source code for the NNDL (Neural Networks and Deep Learning) project.
+This directory contains the description source code for the NNDL-project.
 
 ## Directory Structure
 
 ```
 src/
-├── __init__.py              # Package initialization
+├── __init__.py              # Package initialization for imports
 ├── hardware_test.py         # Hardware compatibility test script
+├── example_usage.py         # Example of code usage
 ├── README.md                # This file
+├── config/                  # Configuration management
+|   ├── __init__.py
+|   └── config.py           # Configuration classes
 ├── data/                    # Data loading and preprocessing
 │   ├── __init__.py
 │   ├── dataset.py          # Dataset classes
@@ -20,46 +24,39 @@ src/
 │   ├── __init__.py
 │   ├── trainer.py          # Training loop and utilities
 │   └── evaluator.py        # Model evaluation
-├── utils/                   # Utility functions
-│   ├── __init__.py
-│   ├── logger.py           # Logging utilities
-│   ├── metrics.py          # Evaluation metrics
-│   └── visualization.py    # Visualization functions
-└── config/                  # Configuration management
+└── utils/                   # Utility functions
     ├── __init__.py
-    ├── config.py           # Configuration classes
-    └── default_config.json # Default configuration template
+    ├── logger.py           # Logging utilities
+    ├── metrics.py          # Evaluation metrics
+    └── visualization.py    # Visualization functions
 ```
 
-## Module Descriptions
+## Configuration Module
 
-### 📁 data/
-Contains utilities for data loading, preprocessing, and augmentation.
-- `dataset.py`: Base dataset classes and data loader creation
-- `transforms.py`: Data transformation and augmentation classes
+The configuration module contains only one file: `config.py`.
+This file contains helpful classes and functions to manage project settings through JSON files.
 
-### 📁 models/
-Contains PyTorch model definitions and architectures.
-- `base_model.py`: Base model class with common functionality (save, load, summary)
-- Example models: `SimpleMLP` and `SimpleCNN`
+### Classes:
+- `DataConfig` → Manages data loading and preprocessing settings
+- `ModelConfig` → Defines model architecture parameters
+- `TrainingConfig` → Handles training hyperparameters
+- `ExperimentConfig` → Main configuration class that contains all sub-configurations (`DataConfig`, `ModelConfig`, `TrainingConfig`) and manages experiment-level settings like naming, device selection, and directory paths.
 
-### 📁 training/
-Contains training loops and evaluation functions.
-- `trainer.py`: Trainer class for model training with progress tracking
-- `evaluator.py`: Evaluator class for model testing and prediction
+### Functions:
+- `load_config(config_path: str) -> ExperimentConfig`
+Loads configuration from a JSON file and creates an `ExperimentConfig` object with all nested configurations.
 
-### 📁 utils/
-Contains helper functions and utilities.
-- `logger.py`: Logging setup and TensorBoard integration
-- `metrics.py`: Evaluation metrics (accuracy, precision, recall, F1, etc.)
-- `visualization.py`: Plotting functions for training history, confusion matrices, etc.
+### Typical usage
 
-### 📁 config/
-Contains configuration management.
-- `config.py`: Configuration dataclasses for experiments
-- `default_config.json`: Template configuration file
+1. Start by creating a JSON file like `configs/default_config.json`
+2. Then you can load the configurations like in this example
+```python
+config = load_config("configs/default_config.json")
 
-## Usage Examples
+# Access all the parameters
+print(f"Experiment: {config.experiment_name}")
+print(f"Model type: {config.ModelConfig.model_type}")
+```
 
 ### Basic Training Pipeline
 

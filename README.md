@@ -99,11 +99,12 @@ NNDL-project/
 │   ├── utils/             # Utility functions (logging, metrics, visualization)
 │   ├── config/            # Configuration management
 │   └── README.md          # Documentazione dettagliata della struttura src/
+├── configs/                # Configuration files json
 ├── data/                   # Dataset
-├── notebooks/              # Jupyter notebooks per esperimenti
 ├── models/                 # Modelli salvati
+├── notebooks/              # Jupyter notebooks per esperimenti
 ├── report/                 # Report LaTeX
-├── example_usage.py        # Script esempio per utilizzare la struttura modulare
+├── results/                # Results of simulations (images)
 └── requirements.txt        # Dipendenze Python
 ```
 

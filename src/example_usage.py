@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Example usage of the modular src/ structure.
 
@@ -12,13 +11,13 @@ import torch.optim as optim
 from pathlib import Path
 
 # Import project modules
-from src.config.config import load_config, get_default_config, save_config
-from src.models.base_model import SimpleMLP, SimpleCNN
-from src.training.trainer import Trainer
-from src.training.evaluator import Evaluator
-from src.utils.logger import setup_logger
-from src.utils.metrics import accuracy
-from src.utils.visualization import plot_training_history
+from config.config import load_config
+from models.base_model import SimpleMLP, SimpleCNN
+from training.trainer import Trainer
+from training.evaluator import Evaluator
+from utils.logger import setup_logger
+from utils.metrics import accuracy
+from utils.visualization import plot_training_history
 
 
 def main():
@@ -33,16 +32,12 @@ def main():
     print("-" * 80)
     
     # Get default configuration
-    config = get_default_config()
+    config = load_config("configs/default_config.json")
     print(f"Experiment: {config.experiment_name}")
     print(f"Device: {config.device}")
     print(f"Batch size: {config.data.batch_size}")
     print(f"Learning rate: {config.training.learning_rate}")
-    
-    # Save configuration for future use
-    Path("./configs").mkdir(exist_ok=True)
-    save_config(config, "./configs/example_config.json")
-    
+
     # 2. Model Creation
     print("\n2. Model Creation")
     print("-" * 80)
@@ -131,8 +126,8 @@ def main():
     print("-" * 80)
     
     # Create directories for outputs
-    Path("./checkpoints").mkdir(exist_ok=True)
-    Path("./logs").mkdir(exist_ok=True)
+    Path("checkpoints").mkdir(exist_ok=True)
+    Path("logs").mkdir(exist_ok=True)
     
     # Define a simple accuracy metric
     def accuracy_metric(predictions, targets):
@@ -147,7 +142,7 @@ def main():
         num_epochs=3,
         metric_fn=accuracy_metric,
         save_best=True,
-        checkpoint_path="./checkpoints/example_model.pth"
+        checkpoint_path="checkpoints/example_model.pth"
     )
     
     # 6. Evaluation
@@ -168,14 +163,14 @@ def main():
     print("-" * 80)
     
     # Plot training history
-    Path("./results").mkdir(exist_ok=True)
+    Path("../results").mkdir(exist_ok=True)
     plot_training_history(
         train_losses=trainer.train_losses,
         val_losses=trainer.val_losses,
         train_metrics=trainer.train_metrics,
         val_metrics=trainer.val_metrics,
         metric_name="Accuracy",
-        save_path="./results/training_history.png"
+        save_path="results/training_history.png"
     )
     
     # 8. Model Saving/Loading
@@ -183,7 +178,7 @@ def main():
     print("-" * 80)
     
     # Save model
-    mlp_model.save("./checkpoints/final_model.pth")
+    mlp_model.save("checkpoints/final_model.pth")
     
     # Load model
     new_model = SimpleMLP(
@@ -191,7 +186,7 @@ def main():
         hidden_dims=[256, 128],
         output_dim=10
     )
-    new_model.load("./checkpoints/final_model.pth", device=device)
+    new_model.load("checkpoints/final_model.pth", device=device)
     print("Model loaded successfully!")
     
     print("\n" + "=" * 80)
