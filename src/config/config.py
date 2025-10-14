@@ -2,7 +2,6 @@
 Configuration management for the project.
 """
 
-import yaml
 import json
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -79,10 +78,10 @@ class ExperimentConfig:
 
 def load_config(config_path: str) -> ExperimentConfig:
     """
-    Load configuration from a YAML or JSON file.
+    Load configuration from a JSON file.
     
     Args:
-        config_path: Path to configuration file
+        config_path: Path to configuration file (.json)
         
     Returns:
         ExperimentConfig object
@@ -94,12 +93,10 @@ def load_config(config_path: str) -> ExperimentConfig:
     
     # Load configuration from file
     with open(config_path, 'r') as f:
-        if config_path.suffix in ['.yaml', '.yml']:
-            config_dict = yaml.safe_load(f)
-        elif config_path.suffix == '.json':
+        if config_path.suffix == '.json':
             config_dict = json.load(f)
         else:
-            raise ValueError(f"Unsupported config file format: {config_path.suffix}")
+            raise ValueError(f"Unsupported config file format: {config_path.suffix}. Only .json is supported.")
     
     # Create nested dataclass objects
     data_config = DataConfig(**config_dict.get('data', {}))
@@ -123,11 +120,11 @@ def load_config(config_path: str) -> ExperimentConfig:
 
 def save_config(config: ExperimentConfig, save_path: str):
     """
-    Save configuration to a YAML or JSON file.
+    Save configuration to a JSON file.
     
     Args:
         config: ExperimentConfig object to save
-        save_path: Path to save the configuration
+        save_path: Path to save the configuration (.json)
     """
     save_path = Path(save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -147,12 +144,10 @@ def save_config(config: ExperimentConfig, save_path: str):
     
     # Save to file
     with open(save_path, 'w') as f:
-        if save_path.suffix in ['.yaml', '.yml']:
-            yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
-        elif save_path.suffix == '.json':
+        if save_path.suffix == '.json':
             json.dump(config_dict, f, indent=2)
         else:
-            raise ValueError(f"Unsupported config file format: {save_path.suffix}")
+            raise ValueError(f"Unsupported config file format: {save_path.suffix}. Only .json is supported.")
     
     print(f"Configuration saved to {save_path}")
 

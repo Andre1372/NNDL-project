@@ -41,7 +41,7 @@ def main():
     
     # Save configuration for future use
     Path("./configs").mkdir(exist_ok=True)
-    save_config(config, "./configs/example_config.yaml")
+    save_config(config, "./configs/example_config.json")
     
     # 2. Model Creation
     print("\n2. Model Creation")
@@ -198,7 +198,7 @@ def main():
     print("Example completed successfully!")
     print("=" * 80)
     print("\nGenerated files:")
-    print("  - configs/example_config.yaml")
+    print("  - configs/example_config.json")
     print("  - checkpoints/example_model.pth")
     print("  - checkpoints/final_model.pth")
     print("  - results/training_history.png")

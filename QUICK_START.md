@@ -71,8 +71,8 @@ class MyModel(BaseModel):
 ```python
 from src.config.config import load_config
 
-# Load from YAML file
-config = load_config('src/config/default_config.yaml')
+# Load from JSON file
+config = load_config('src/config/default_config.json')
 
 # Or get default config
 from src.config.config import get_default_config
@@ -138,34 +138,36 @@ plot_confusion_matrix(cm, save_path='results/cm.png')
 
 ## 📊 Using Configuration Files
 
-Create a custom config file `my_experiment.yaml`:
+Create a custom config file `my_experiment.json`:
 
-```yaml
-experiment_name: my_experiment
-device: cuda
-seed: 42
-
-data:
-  batch_size: 64
-  num_workers: 4
-
-model:
-  model_type: simple_mlp
-  input_dim: 784
-  hidden_dims: [512, 256, 128]
-  output_dim: 10
-
-training:
-  num_epochs: 20
-  learning_rate: 0.0001
-  optimizer: adam
+```json
+{
+  "experiment_name": "my_experiment",
+  "device": "cuda",
+  "seed": 42,
+  "data": {
+    "batch_size": 64,
+    "num_workers": 4
+  },
+  "model": {
+    "model_type": "simple_mlp",
+    "input_dim": 784,
+    "hidden_dims": [512, 256, 128],
+    "output_dim": 10
+  },
+  "training": {
+    "num_epochs": 20,
+    "learning_rate": 0.0001,
+    "optimizer": "adam"
+  }
+}
 ```
 
 Then load it:
 
 ```python
 from src.config.config import load_config
-config = load_config('my_experiment.yaml')
+config = load_config('my_experiment.json')
 ```
 
 ## 🔍 Logging

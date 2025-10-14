@@ -28,7 +28,7 @@ src/
 └── config/                  # Configuration management
     ├── __init__.py
     ├── config.py           # Configuration classes
-    └── default_config.yaml # Default configuration template
+    └── default_config.json # Default configuration template
 ```
 
 ## Module Descriptions
@@ -57,7 +57,7 @@ Contains helper functions and utilities.
 ### 📁 config/
 Contains configuration management.
 - `config.py`: Configuration dataclasses for experiments
-- `default_config.yaml`: Template configuration file
+- `default_config.json`: Template configuration file
 
 ## Usage Examples
 
@@ -72,7 +72,7 @@ from src.training.trainer import Trainer
 from src.utils.logger import setup_logger
 
 # Load configuration
-config = load_config('src/config/default_config.yaml')
+config = load_config('src/config/default_config.json')
 
 # Setup logger
 logger = setup_logger('training', log_file='logs/train.log')

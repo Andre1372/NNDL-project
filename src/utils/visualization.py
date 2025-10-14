@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from typing import List, Optional, Tuple
-import seaborn as sns
 
 
 def plot_training_history(
@@ -87,18 +86,39 @@ def plot_confusion_matrix(
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
     
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(
-        cm,
-        annot=True,
-        fmt='.2f' if normalize else 'd',
-        cmap='Blues',
-        xticklabels=class_names if class_names else 'auto',
-        yticklabels=class_names if class_names else 'auto'
-    )
-    plt.xlabel('Predicted Label')
-    plt.ylabel('True Label')
-    plt.title('Confusion Matrix' + (' (Normalized)' if normalize else ''))
+    fig, ax = plt.subplots(figsize=(10, 8))
+    
+    # Plot confusion matrix using matplotlib's imshow
+    im = ax.imshow(cm, interpolation='nearest', cmap='Blues')
+    ax.figure.colorbar(im, ax=ax)
+    
+    # Set ticks and labels
+    if class_names:
+        ax.set_xticks(np.arange(len(class_names)))
+        ax.set_yticks(np.arange(len(class_names)))
+        ax.set_xticklabels(class_names)
+        ax.set_yticklabels(class_names)
+    else:
+        ax.set_xticks(np.arange(cm.shape[1]))
+        ax.set_yticks(np.arange(cm.shape[0]))
+    
+    # Rotate the tick labels for better readability
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+    
+    # Add text annotations
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, format(cm[i, j], fmt),
+                   ha="center", va="center",
+                   color="white" if cm[i, j] > thresh else "black")
+    
+    ax.set_xlabel('Predicted Label')
+    ax.set_ylabel('True Label')
+    ax.set_title('Confusion Matrix' + (' (Normalized)' if normalize else ''))
+    
+    plt.tight_layout()
     
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
