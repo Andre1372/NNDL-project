@@ -31,7 +31,6 @@ src/
     └── visualization.py    # Visualization functions
 ```
 
-
 ## Configuration Module
 
 The configuration module contains only one file: `config.py`.
@@ -131,6 +130,57 @@ class CustomModel(BaseModel):
         """ Return the NN output given the input. """
 ```
 Once created, the model will be passed to a trainer.
+
+
+
+## Training Module
+
+The training module provides classes for training and evaluating NN models. It contains two files `trainer.py`, `evaluator.py`.
+
+### `trainer.py`
+
+##### Classes:
+- `Trainer` → Training manager that handles the complete training workflow including training loops, validation, metrics tracking, and model checkpointing with automatic best model saving functionality.
+
+### `evaluator.py`
+
+##### Classes:
+- `Evaluator` → Evaluation class for testing models.
+
+### Typical usage
+
+```python
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from src.training.trainer import Trainer
+from src.training.evaluator import Evaluator
+
+model = # model from base_model.py
+criterion = # loss function from torch.nn
+optimizer = # optimizer from torch.optim
+
+# Create trainer instance
+trainer = Trainer(model=model, criterion=criterion, optimizer=optimizer, device='cuda')
+
+# Train the model
+trainer.fit(
+    train_loader=train_dataloader,
+    val_loader=val_dataloader,
+    num_epochs=100,
+    metric_fn=your_metric_function,  # optional
+    save_best=True,
+    checkpoint_path='best_model.pth'
+)
+
+# Evaluate the model
+evaluator = Evaluator(model=model, device='cuda')
+results = evaluator.evaluate(
+    dataloader=test_dataloader,
+    criterion=criterion  # optional
+)
+
+```
 
 
 

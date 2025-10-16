@@ -44,8 +44,6 @@ class TrainingConfig:
     learning_rate: float
     weight_decay: float
     optimizer: str
-    scheduler: Optional[str] # can be null
-    scheduler_params: dict
     loss_function: str
     early_stopping_patience: int
     gradient_clip: Optional[float] # can be null

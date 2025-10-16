@@ -27,8 +27,6 @@
     "learning_rate": 0.001,
     "weight_decay": 0.00001,
     "optimizer": "adam",
-    "scheduler": null,
-    "scheduler_params": {},
     "loss_function": "cross_entropy",
     "early_stopping_patience": 5,
     "gradient_clip": null
