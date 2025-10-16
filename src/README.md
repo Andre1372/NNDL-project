@@ -36,13 +36,16 @@ src/
 The configuration module contains only one file: `config.py`.
 This file contains helpful classes and functions to manage project settings through JSON files.
 
-### Classes:
+### `config.py`
+
+##### Classes:
+
 - `DataConfig` → Manages data loading and preprocessing settings
 - `ModelConfig` → Defines model architecture parameters
 - `TrainingConfig` → Handles training hyperparameters
 - `ExperimentConfig` → Main configuration class that contains all sub-configurations (`DataConfig`, `ModelConfig`, `TrainingConfig`) and manages experiment-level settings like naming, device selection, and directory paths.
 
-### Functions:
+##### Functions:
 - `load_config(config_path: str) -> ExperimentConfig`
 Loads configuration from a JSON file and creates an `ExperimentConfig` object with all nested configurations.
 
@@ -51,11 +54,51 @@ Loads configuration from a JSON file and creates an `ExperimentConfig` object wi
 1. Start by creating a JSON file like `configs/default_config.json`
 2. Then you can load the configurations like in this example
 ```python
+from src.config.config import load_config
+
 config = load_config("configs/default_config.json")
 
 # Access all the parameters
 print(f"Experiment: {config.experiment_name}")
 print(f"Model type: {config.ModelConfig.model_type}")
+```
+
+
+## Data Module
+
+The data module handles dataset class, preprocessing, and transformations for loading correctly a dataset using `torch.utils.data.DataLoader`. It contains two files `dataset.py`, `transforms.py`.
+
+### `dataset.py`
+
+##### Classes:
+- `BaseDataset` → Implement a dataset compatible with torch **!TO COMPLETE!**
+
+### `transforms.py`
+
+##### Classes:
+- `ToTensor` → Callable class to convert a data sample to a tensor.
+
+### Typical usage
+
+```python
+from src.data.dataset import BaseDataset
+from src.data.transforms import ToTensor
+from torch.utils.data import DataLoader
+
+# Create transformation (can be concatenated using torchvision.transforms.Compose)
+to_tensor = ToTensor()
+
+# Create dataset with transformation
+train_dataset = BaseDataset(
+    data_path="data/train_data", 
+    transform=to_tensor
+)
+
+# Access transformed samples samples
+sample = train_dataset[0]
+
+# Use a dataloader
+train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=0)
 ```
 
 ### Basic Training Pipeline

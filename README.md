@@ -60,7 +60,7 @@ pip install -r requirements.txt
 
 #### Mac
 
-Forse è possibile sfruttare la GPU integrata nei processori M1, M2, M3, M4 che si chiama mps, quindi cancellare la riga 2 di `requirements.txt`.
+Forse è possibile sfruttare la GPU integrata nei processori M1, M2, M3, M4 che si chiama mps, quindi cancellare la riga 2 di `requirements.txt`. **Poi ricordarsi di non pushare questa modifica.**
 Infine digitare (potrebbe metterci qualche minuto):
 ```bash
 pip install -r requirements.txt
