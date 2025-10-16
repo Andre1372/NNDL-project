@@ -31,6 +31,7 @@ src/
     └── visualization.py    # Visualization functions
 ```
 
+
 ## Configuration Module
 
 The configuration module contains only one file: `config.py`.
@@ -100,6 +101,38 @@ sample = train_dataset[0]
 # Use a dataloader
 train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=0)
 ```
+
+
+## Models Module
+
+The models module contains neural network architectures. Includes only the file `base_model.py`.
+
+### `base_model.py`
+
+##### Classes:
+- `BaseModel` → Abstract base class providing common interface for all models with save/load methods, parameter counting, and model summary
+- `SimpleMLP` → Example implementation of Multi-Layer Perceptron
+- `SimpleCNN` → Example implementation of CNN
+
+### Typical usage
+
+How to create a new model class:
+
+```python
+# in base_model.py
+class CustomModel(BaseModel):
+    """ Custom neural network architecture. """
+    
+    def __init__(self, parameters):
+        super(CustomModel, self).__init__()
+        """ Define the layers. """
+    
+    def forward(self, x):
+        """ Return the NN output given the input. """
+```
+Once created, the model will be passed to a trainer.
+
+
 
 ### Basic Training Pipeline
 

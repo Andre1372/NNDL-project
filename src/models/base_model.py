@@ -4,8 +4,6 @@ Base model classes and architectures.
 
 import torch
 import torch.nn as nn
-from typing import Dict, Any
-
 
 class BaseModel(nn.Module):
     """
@@ -15,48 +13,24 @@ class BaseModel(nn.Module):
     """
     
     def __init__(self):
-        """Initialize the base model."""
+        """ Initialize the base model. """
         super(BaseModel, self).__init__()
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass through the model.
-        
-        Args:
-            x: Input tensor
-            
-        Returns:
-            Output tensor
-        """
+        """ Forward pass through the model."""
         raise NotImplementedError("Subclasses must implement forward()")
     
     def get_num_parameters(self) -> int:
-        """
-        Get the total number of trainable parameters.
-        
-        Returns:
-            Number of trainable parameters
-        """
+        """ Get the total number of trainable parameters. """
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
     
     def save(self, path: str):
-        """
-        Save model state dict to file.
-        
-        Args:
-            path: Path to save the model
-        """
+        """ Save model state dict to file. """
         torch.save(self.state_dict(), path)
         print(f"Model saved to {path}")
     
     def load(self, path: str, device: str = 'cpu'):
-        """
-        Load model state dict from file.
-        
-        Args:
-            path: Path to the saved model
-            device: Device to load the model to
-        """
+        """ Load model state dict from file. """
         self.load_state_dict(torch.load(path, map_location=device))
         print(f"Model loaded from {path}")
     
@@ -66,7 +40,6 @@ class BaseModel(nn.Module):
         print(f"Model: {self.__class__.__name__}")
         print(f"{'='*80}")
         print(self)
-        print(f"{'='*80}")
         print(f"Total trainable parameters: {self.get_num_parameters():,}")
         print(f"{'='*80}\n")
 
@@ -74,26 +47,11 @@ class BaseModel(nn.Module):
 class SimpleMLP(BaseModel):
     """
     Simple Multi-Layer Perceptron example.
-    
     This is a template/example model architecture.
     """
     
-    def __init__(
-        self,
-        input_dim: int,
-        hidden_dims: list,
-        output_dim: int,
-        dropout: float = 0.5
-    ):
-        """
-        Initialize the MLP.
-        
-        Args:
-            input_dim: Input dimension
-            hidden_dims: List of hidden layer dimensions
-            output_dim: Output dimension
-            dropout: Dropout probability
-        """
+    def __init__(self, input_dim: int, hidden_dims: list, output_dim: int, dropout: float = 0.5):
+        """ Initialize the MLP. """
         super(SimpleMLP, self).__init__()
         
         layers = []
@@ -110,22 +68,13 @@ class SimpleMLP(BaseModel):
         self.network = nn.Sequential(*layers)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass through the MLP.
-        
-        Args:
-            x: Input tensor of shape (batch_size, input_dim)
-            
-        Returns:
-            Output tensor of shape (batch_size, output_dim)
-        """
+        """ Forward pass through the MLP. """
         return self.network(x)
 
 
 class SimpleCNN(BaseModel):
     """
     Simple Convolutional Neural Network example.
-    
     This is a template/example model architecture.
     """
     
@@ -134,13 +83,7 @@ class SimpleCNN(BaseModel):
         in_channels: int = 1,
         num_classes: int = 10
     ):
-        """
-        Initialize the CNN.
-        
-        Args:
-            in_channels: Number of input channels
-            num_classes: Number of output classes
-        """
+        """ Initialize the CNN. """
         super(SimpleCNN, self).__init__()
         
         self.features = nn.Sequential(
@@ -164,15 +107,7 @@ class SimpleCNN(BaseModel):
         )
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass through the CNN.
-        
-        Args:
-            x: Input tensor of shape (batch_size, channels, height, width)
-            
-        Returns:
-            Output tensor of shape (batch_size, num_classes)
-        """
+        """ Forward pass through the CNN. """
         x = self.features(x)
         x = self.classifier(x)
         return x
