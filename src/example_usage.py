@@ -15,7 +15,6 @@ from config.config import load_config
 from models.base_model import SimpleMLP, SimpleCNN
 from training.trainer import Trainer
 from training.evaluator import Evaluator
-from utils.logger import setup_logger
 from utils.metrics import accuracy
 from utils.visualization import plot_training_history
 
@@ -127,20 +126,13 @@ def main():
     
     # Create directories for outputs
     Path("checkpoints").mkdir(exist_ok=True)
-    Path("logs").mkdir(exist_ok=True)
-    
-    # Define a simple accuracy metric
-    def accuracy_metric(predictions, targets):
-        pred_classes = predictions.argmax(dim=1)
-        correct = (pred_classes == targets).sum().item()
-        return correct / targets.size(0)
     
     # Train for a few epochs (small demo)
     trainer.fit(
         train_loader=train_loader,
         val_loader=val_loader,
         num_epochs=3,
-        metric_fn=accuracy_metric,
+        metric_fn=accuracy,
         save_best=True,
         checkpoint_path="checkpoints/example_model.pth"
     )

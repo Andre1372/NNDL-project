@@ -1,12 +1,7 @@
-"""
-Metrics for model evaluation.
-"""
 
 import torch
-import torch.nn as nn
 from typing import Tuple
 from sklearn.metrics import (
-    accuracy_score,
     precision_score,
     recall_score,
     f1_score,
@@ -16,50 +11,25 @@ import numpy as np
 
 
 def accuracy(predictions: torch.Tensor, targets: torch.Tensor) -> float:
-    """
-    Calculate classification accuracy.
-    
-    Args:
-        predictions: Model predictions (logits or probabilities)
-        targets: Ground truth labels
-        
-    Returns:
-        Accuracy as a float
-    """
-    pred_classes = predictions.argmax(dim=1)
+    """ Calculate classification accuracy. """
+
+    pred_classes = predictions.argmax(dim=1) # indices of the maximum value in the tensor
     correct = (pred_classes == targets).sum().item()
     total = targets.size(0)
     return correct / total
 
 
-def top_k_accuracy(
-    predictions: torch.Tensor,
-    targets: torch.Tensor,
-    k: int = 5
-) -> float:
-    """
-    Calculate top-k accuracy.
-    
-    Args:
-        predictions: Model predictions (logits or probabilities)
-        targets: Ground truth labels
-        k: Number of top predictions to consider
-        
-    Returns:
-        Top-k accuracy as a float
-    """
-    _, top_k_preds = predictions.topk(k, dim=1, largest=True, sorted=True)
+def top_k_accuracy(predictions: torch.Tensor, targets: torch.Tensor, k: int = 5) -> float: 
+    """ Calculate top-k accuracy. """
+
+    _, top_k_preds = predictions.topk(k, dim=1, largest=True, sorted=True) # indices of top k predictions
     targets_expanded = targets.view(-1, 1).expand_as(top_k_preds)
     correct = (top_k_preds == targets_expanded).any(dim=1).sum().item()
     total = targets.size(0)
     return correct / total
 
 
-def precision_recall_f1(
-    predictions: torch.Tensor,
-    targets: torch.Tensor,
-    average: str = 'macro'
-) -> Tuple[float, float, float]:
+def precision_recall_f1(predictions: torch.Tensor, targets: torch.Tensor, average: str = 'macro') -> Tuple[float, float, float]:
     """
     Calculate precision, recall, and F1 score.
     
@@ -81,20 +51,9 @@ def precision_recall_f1(
     return precision, recall, f1
 
 
-def get_confusion_matrix(
-    predictions: torch.Tensor,
-    targets: torch.Tensor
-) -> np.ndarray:
-    """
-    Calculate confusion matrix.
-    
-    Args:
-        predictions: Model predictions (logits or probabilities)
-        targets: Ground truth labels
-        
-    Returns:
-        Confusion matrix as numpy array
-    """
+def get_confusion_matrix(predictions: torch.Tensor, targets: torch.Tensor) -> np.ndarray: 
+    """ Calculate confusion matrix. """
+
     pred_classes = predictions.argmax(dim=1).cpu().numpy()
     targets_np = targets.cpu().numpy()
     
@@ -102,9 +61,7 @@ def get_confusion_matrix(
 
 
 class AverageMeter:
-    """
-    Computes and stores the average and current value.
-    """
+    """ Computes and stores the average and current value. """
     
     def __init__(self):
         """Initialize the meter."""
@@ -132,9 +89,7 @@ class AverageMeter:
 
 
 class MetricTracker:
-    """
-    Track multiple metrics during training.
-    """
+    """ Track multiple metrics during training. """
     
     def __init__(self, *metrics: str):
         """
@@ -143,7 +98,7 @@ class MetricTracker:
         Args:
             *metrics: Names of metrics to track
         """
-        self.metrics = {metric: AverageMeter() for metric in metrics}
+        self.metrics = {metric: AverageMeter() for metric in metrics} # dict of metric name to AverageMeter
     
     def update(self, metric_dict: dict, n: int = 1):
         """
@@ -158,7 +113,7 @@ class MetricTracker:
                 self.metrics[metric].update(value, n)
     
     def reset(self):
-        """Reset all metrics."""
+        """ Reset all metrics. """
         for metric in self.metrics.values():
             metric.reset()
     

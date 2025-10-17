@@ -1,32 +1,20 @@
-"""
-Visualization utilities.
-"""
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 
 def plot_training_history(
-    train_losses: List[float],
-    val_losses: List[float],
-    train_metrics: Optional[List[float]] = None,
-    val_metrics: Optional[List[float]] = None,
-    metric_name: str = 'Metric',
-    save_path: Optional[str] = None
+    train_losses: List[float],          # training losses per epoch
+    val_losses: List[float],            # validation losses per epoch
+    train_metrics: Optional[List[float]] = None,    # training metrics per epoch
+    val_metrics: Optional[List[float]] = None,      # validation metrics per epoch
+    metric_name: str = 'Metric',        # name of the metric
+    save_path: Optional[str] = None     # path to save the figure
 ):
-    """
-    Plot training history (losses and metrics).
-    
-    Args:
-        train_losses: Training losses per epoch
-        val_losses: Validation losses per epoch
-        train_metrics: Optional training metrics per epoch
-        val_metrics: Optional validation metrics per epoch
-        metric_name: Name of the metric
-        save_path: Optional path to save the figure
-    """
+    """ Plot training history (losses and metrics). """
+
     epochs = range(1, len(train_losses) + 1)
     
     if train_metrics is not None and val_metrics is not None:
@@ -69,20 +57,13 @@ def plot_training_history(
 
 
 def plot_confusion_matrix(
-    cm: np.ndarray,
-    class_names: Optional[List[str]] = None,
-    normalize: bool = False,
-    save_path: Optional[str] = None
+    cm: np.ndarray,                             # confusion matrix
+    class_names: Optional[List[str]] = None,    # optional class names
+    normalize: bool = False,                    # whether to normalize the matrix
+    save_path: Optional[str] = None             # path to save the figure
 ):
-    """
-    Plot confusion matrix.
-    
-    Args:
-        cm: Confusion matrix
-        class_names: Optional list of class names
-        normalize: Whether to normalize the confusion matrix
-        save_path: Optional path to save the figure
-    """
+    """ Plot confusion matrix. """
+
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
     
@@ -119,92 +100,6 @@ def plot_confusion_matrix(
     ax.set_title('Confusion Matrix' + (' (Normalized)' if normalize else ''))
     
     plt.tight_layout()
-    
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"Figure saved to {save_path}")
-    
-    plt.show()
-
-
-def visualize_predictions(
-    images: torch.Tensor,
-    predictions: torch.Tensor,
-    targets: torch.Tensor,
-    class_names: Optional[List[str]] = None,
-    num_images: int = 16,
-    save_path: Optional[str] = None
-):
-    """
-    Visualize model predictions on images.
-    
-    Args:
-        images: Batch of images
-        predictions: Model predictions
-        targets: Ground truth labels
-        class_names: Optional list of class names
-        num_images: Number of images to display
-        save_path: Optional path to save the figure
-    """
-    num_images = min(num_images, images.size(0))
-    pred_classes = predictions.argmax(dim=1)
-    
-    fig, axes = plt.subplots(4, 4, figsize=(12, 12))
-    axes = axes.flatten()
-    
-    for i in range(num_images):
-        img = images[i].cpu().numpy()
-        
-        # Handle different image formats
-        if img.shape[0] == 1:  # Grayscale
-            img = img.squeeze()
-            axes[i].imshow(img, cmap='gray')
-        elif img.shape[0] == 3:  # RGB
-            img = np.transpose(img, (1, 2, 0))
-            axes[i].imshow(img)
-        else:
-            axes[i].imshow(img.squeeze())
-        
-        pred_label = class_names[pred_classes[i]] if class_names else pred_classes[i]
-        true_label = class_names[targets[i]] if class_names else targets[i]
-        
-        color = 'green' if pred_classes[i] == targets[i] else 'red'
-        axes[i].set_title(f'Pred: {pred_label}\nTrue: {true_label}', color=color)
-        axes[i].axis('off')
-    
-    # Hide remaining subplots
-    for i in range(num_images, len(axes)):
-        axes[i].axis('off')
-    
-    plt.tight_layout()
-    
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"Figure saved to {save_path}")
-    
-    plt.show()
-
-
-def plot_learning_rate(
-    learning_rates: List[float],
-    save_path: Optional[str] = None
-):
-    """
-    Plot learning rate schedule.
-    
-    Args:
-        learning_rates: List of learning rates per epoch
-        save_path: Optional path to save the figure
-    """
-    epochs = range(1, len(learning_rates) + 1)
-    
-    plt.figure(figsize=(10, 5))
-    plt.plot(epochs, learning_rates, 'b-')
-    plt.xlabel('Epoch')
-    plt.ylabel('Learning Rate')
-    plt.title('Learning Rate Schedule')
-    plt.grid(True)
-    plt.yscale('log')
     
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')

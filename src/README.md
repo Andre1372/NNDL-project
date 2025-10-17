@@ -26,7 +26,6 @@ src/
 │   └── evaluator.py        # Model evaluation
 └── utils/                   # Utility functions
     ├── __init__.py
-    ├── logger.py           # Logging utilities
     ├── metrics.py          # Evaluation metrics
     └── visualization.py    # Visualization functions
 ```
@@ -179,171 +178,64 @@ results = evaluator.evaluate(
     dataloader=test_dataloader,
     criterion=criterion  # optional
 )
-
 ```
 
 
+## Utils Module
 
-### Basic Training Pipeline
+The utils module provides utility functions and classes for model evaluation and result visualization. It contains two files `metrics.py` and `visualization.py`.
+
+### `metrics.py`
+
+##### Classes:
+- `AverageMeter` → Utility class that computes and stores the average and current value of metrics, useful for tracking running averages during training
+- `MetricTracker` → Advanced metric tracking class that manages multiple AverageMeter instances for comprehensive training monitoring
+
+##### Functions:
+- `accuracy(predictions: torch.Tensor, targets: torch.Tensor) -> float` → Calculate classification accuracy by comparing predicted classes with ground truth labels
+- `top_k_accuracy(predictions: torch.Tensor, targets: torch.Tensor, k: int = 5) -> float` → Calculate top-k accuracy, checking if the true label is among the k highest predicted probabilities  
+- `precision_recall_f1(predictions: torch.Tensor, targets: torch.Tensor, average: str = 'macro') -> Tuple[float, float, float]` → Calculate precision, recall, and F1 score with different averaging methods ('micro', 'macro', 'weighted')
+- `get_confusion_matrix(predictions: torch.Tensor, targets: torch.Tensor) -> np.ndarray` → Generate confusion matrix for classification evaluation
+
+### `visualization.py`
+
+##### Functions:
+- `plot_training_history(train_losses: List[float], val_losses: List[float], train_metrics: Optional[List[float]] = None, val_metrics: Optional[List[float]] = None, metric_name: str = 'Metric', save_path: Optional[str] = None)` → Create comprehensive plots of training and validation losses and metrics over epochs with optional saving functionality
+- `plot_confusion_matrix(cm: np.ndarray, class_names: Optional[List[str]] = None, normalize: bool = False, save_path: Optional[str] = None)` → Generate professional confusion matrix visualizations with optional normalization, class names, and saving capabilities
+
+### Typical usage
 
 ```python
 import torch
-from src.config.config import load_config
-from src.data.dataset import get_dataloaders, BaseDataset
-from src.models.base_model import SimpleMLP
-from src.training.trainer import Trainer
-from src.utils.logger import setup_logger
+from src.utils.metrics import accuracy, MetricTracker, get_confusion_matrix
+from src.utils.visualization import plot_training_history, plot_confusion_matrix
 
-# Load configuration
-config = load_config('src/config/default_config.json')
+# Calculate accuracy
+acc = accuracy(predictions, targets)
+print(f"Accuracy: {acc:.4f}")
 
-# Setup logger
-logger = setup_logger('training', log_file='logs/train.log')
+# Track metrics during training
+tracker = MetricTracker('loss', 'accuracy', 'f1_score')
+tracker.update({'loss': 0.5, 'accuracy': 0.85, 'f1_score': 0.82})
+averages = tracker.get_averages()
 
-# Create datasets
-train_dataset = BaseDataset(config.data.data_path, transform=None)
-val_dataset = BaseDataset(config.data.data_path, transform=None)
-
-# Create data loaders
-dataloaders = get_dataloaders(
-    train_dataset,
-    val_dataset,
-    batch_size=config.data.batch_size,
-    num_workers=config.data.num_workers
+# Generate confusion matrix and visualize
+cm = get_confusion_matrix(predictions, targets)
+plot_confusion_matrix(
+    cm, 
+    class_names=[f'Class_{i}' for i in range(10)],
+    normalize=True,
+    save_path='confusion_matrix.png'
 )
 
-# Create model
-model = SimpleMLP(
-    input_dim=config.model.input_dim,
-    hidden_dims=config.model.hidden_dims,
-    output_dim=config.model.output_dim,
-    dropout=config.model.dropout
-)
-
-# Setup training
-criterion = torch.nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=config.training.learning_rate)
-
-trainer = Trainer(
-    model=model,
-    criterion=criterion,
-    optimizer=optimizer,
-    device=config.device
-)
-
-# Train model
-trainer.fit(
-    train_loader=dataloaders['train'],
-    val_loader=dataloaders['val'],
-    num_epochs=config.training.num_epochs,
-    save_best=True,
-    checkpoint_path='checkpoints/best_model.pth'
-)
-```
-
-### Model Evaluation
-
-```python
-from src.training.evaluator import Evaluator
-from src.utils.metrics import accuracy, precision_recall_f1
-from src.utils.visualization import plot_confusion_matrix
-
-# Create evaluator
-evaluator = Evaluator(model, device=config.device)
-
-# Evaluate on test set
-results = evaluator.evaluate(dataloaders['test'], criterion=criterion)
-
-# Compute metrics
-acc = accuracy(results['predictions'], results['targets'])
-precision, recall, f1 = precision_recall_f1(results['predictions'], results['targets'])
-
-print(f"Test Accuracy: {acc:.4f}")
-print(f"Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}")
-```
-
-### Visualization
-
-```python
-from src.utils.visualization import (
-    plot_training_history,
-    plot_confusion_matrix,
-    visualize_predictions
-)
-from src.utils.metrics import get_confusion_matrix
-
-# Plot training history
+# Visualize training progress
 plot_training_history(
-    train_losses=trainer.train_losses,
-    val_losses=trainer.val_losses,
-    save_path='results/training_history.png'
+    train_losses=train_losses,
+    val_losses=val_losses, 
+    train_metrics=train_acc,
+    val_metrics=val_acc,
+    metric_name='Accuracy',
+    save_path='training_history.png'
 )
-
-# Plot confusion matrix
-cm = get_confusion_matrix(results['predictions'], results['targets'])
-plot_confusion_matrix(cm, class_names=None, save_path='results/confusion_matrix.png')
 ```
 
-## Best Practices
-
-1. **Configuration Management**: Always use configuration files for experiments
-2. **Logging**: Use the logger module for consistent logging across components
-3. **Checkpointing**: Save model checkpoints regularly during training
-4. **Modular Design**: Keep components loosely coupled and reusable
-5. **Type Hints**: Use type hints for better code documentation
-6. **Docstrings**: Document all classes and functions with clear docstrings
-
-## Adding New Components
-
-### Adding a New Model
-
-Create a new file in `models/` that inherits from `BaseModel`:
-
-```python
-from src.models.base_model import BaseModel
-import torch.nn as nn
-
-class MyCustomModel(BaseModel):
-    def __init__(self, ...):
-        super(MyCustomModel, self).__init__()
-        # Define your layers
-    
-    def forward(self, x):
-        # Define forward pass
-        return x
-```
-
-### Adding a New Dataset
-
-Create a new dataset class in `data/dataset.py` that inherits from `BaseDataset` or PyTorch's `Dataset`:
-
-```python
-class MyCustomDataset(BaseDataset):
-    def __init__(self, data_path, transform=None):
-        super(MyCustomDataset, self).__init__(data_path, transform)
-        # Load your data
-    
-    def __getitem__(self, idx):
-        # Return sample and target
-        return sample, target
-```
-
-### Adding New Metrics
-
-Add new metric functions in `utils/metrics.py`:
-
-```python
-def my_custom_metric(predictions, targets):
-    # Compute your metric
-    return metric_value
-```
-
-## Testing Hardware
-
-To verify your PyTorch installation and hardware compatibility, run:
-
-```bash
-python src/hardware_test.py
-```
-
-This will test your GPU/CPU and provide performance benchmarks.
