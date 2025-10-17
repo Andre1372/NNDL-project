@@ -31,7 +31,7 @@ def main():
     print("-" * 80)
     
     # Get default configuration
-    config = load_config("configs/default_config.json")
+    config = load_config("../configs/default_config.json")
     print(f"Experiment: {config.experiment_name}")
     print(f"Device: {config.device}")
     print(f"Batch size: {config.data.batch_size}")
