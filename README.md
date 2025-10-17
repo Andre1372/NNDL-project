@@ -60,7 +60,7 @@ pip install -r requirements.txt
 
 #### Mac
 
-Forse è possibile sfruttare la GPU integrata nei processori M1, M2, M3, M4 che si chiama mps, quindi cancellare la riga 2 di `requirements.txt`.
+Forse è possibile sfruttare la GPU integrata nei processori M1, M2, M3, M4 che si chiama mps, quindi cancellare la riga 2 di `requirements.txt`. **Poi ricordarsi di non pushare questa modifica.**
 Infine digitare (potrebbe metterci qualche minuto):
 ```bash
 pip install -r requirements.txt
@@ -70,17 +70,45 @@ pip install -r requirements.txt
 
 È possibile verificare il setup del progetto runnando il file `hardware_test.py` per testare la potenza di calcolo dell'hardware.
 
+```bash
+python src/hardware_test.py
+```
+
+### 4. Esempio di utilizzo
+
+Per vedere come utilizzare la nuova struttura modulare del progetto, esegui lo script di esempio:
+
+```bash
+python example_usage.py
+```
+
+Questo script dimostra come:
+- Gestire le configurazioni
+- Creare e addestrare modelli
+- Valutare le performance
+- Visualizzare i risultati
+
 ## Struttura del progetto
 
 ```
 NNDL-project/
-├── src/              # Codice sorgente del progetto
-├── data/             # Dataset
-├── notebooks/        # Jupyter notebooks per esperimenti
-├── models/           # Modelli salvati
-├── report/           # Report LaTeX
-└── requirements.txt  # Dipendenze Python
+├── src/                    # Codice sorgente del progetto (modular structure)
+│   ├── data/              # Data loading and preprocessing
+│   ├── models/            # PyTorch model architectures
+│   ├── training/          # Training and evaluation
+│   ├── utils/             # Utility functions (logging, metrics, visualization)
+│   ├── config/            # Configuration management
+│   └── README.md          # Documentazione dettagliata della struttura src/
+├── configs/                # Configuration files json
+├── data/                   # Dataset
+├── models/                 # Modelli salvati
+├── notebooks/              # Jupyter notebooks per esperimenti
+├── report/                 # Report LaTeX
+├── results/                # Results of simulations (images)
+└── requirements.txt        # Dipendenze Python
 ```
+
+Per informazioni dettagliate sulla struttura modulare del codice sorgente, consultare [src/README.md](src/README.md).
 
 ## Report
 

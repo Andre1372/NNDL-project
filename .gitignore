@@ -5,3 +5,37 @@ venv_deep/
 # VSCode settings
 .vscode/
 .json
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# PyTorch
+*.pth
+*.pt
+*.ckpt
+
+# Logs and outputs
+logs/
+checkpoints/
+runs/
+*.log
+
+# Data
+data/*
+!data/.gitkeep
+
+# Models
+models/*
+!models/.gitkeep

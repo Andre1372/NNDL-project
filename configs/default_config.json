@@ -1,0 +1,34 @@
+{
+  "experiment_name": "default_experiment",
+  "seed": 42,
+  "device": "cpu",
+  "checkpoint_dir": "checkpoints",
+  "log_dir": "logs",
+  "save_frequency": 1,
+  "data": {
+    "data_path": "data",
+    "batch_size": 32,
+    "num_workers": 4,
+    "train_split": 0.7,
+    "val_split": 0.15,
+    "test_split": 0.15,
+    "shuffle": true,
+    "pin_memory": true
+  },
+  "model": {
+    "model_type": "simple_mlp",
+    "input_dim": 784,
+    "hidden_dims": [256, 128],
+    "output_dim": 10,
+    "dropout": 0.5
+  },
+  "training": {
+    "num_epochs": 10,
+    "learning_rate": 0.001,
+    "weight_decay": 0.00001,
+    "optimizer": "adam",
+    "loss_function": "cross_entropy",
+    "early_stopping_patience": 5,
+    "gradient_clip": null
+  }
+}
