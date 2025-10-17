@@ -22,8 +22,7 @@ src/
 │   └── base_model.py       # Base model classes and examples
 ├── training/                # Training and evaluation
 │   ├── __init__.py
-│   ├── trainer.py          # Training loop and utilities
-│   └── evaluator.py        # Model evaluation
+│   └── trainer.py          # Training loop and utilities
 └── utils/                   # Utility functions
     ├── __init__.py
     ├── metrics.py          # Evaluation metrics
@@ -103,14 +102,14 @@ train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_wor
 
 ## Models Module
 
-The models module contains neural network architectures using PyTorch Lightning. Includes only the file `base_model.py`.
+The models module contains neural network architectures. Includes only the file `base_model.py`.
 
 ### `base_model.py`
 
 ##### Classes:
-- `BaseModel` → Abstract base class providing common interface for all models with save/load methods, parameter counting, and model summary. Now inherits from `pl.LightningModule` for PyTorch Lightning support.
-- `SimpleMLP` → Example implementation of Multi-Layer Perceptron with Lightning support
-- `SimpleCNN` → Example implementation of CNN with Lightning support
+- `BaseModel` → Abstract base class providing common interface for all models with save/load methods, parameter counting, and model summary.
+- `SimpleMLP` → Example implementation of Multi-Layer Perceptron
+- `SimpleCNN` → Example implementation of CNN
 
 ##### PyTorch Lightning Methods:
 All models now include:
@@ -143,21 +142,12 @@ Once created, the model will be passed to a PyTorch Lightning trainer.
 
 ## Training Module
 
-The training module provides classes for training and evaluating NN models using PyTorch Lightning. It contains two files `trainer.py`, `evaluator.py`.
+The training module provides classes for training and evaluating NN models. It contains two files `trainer.py`, `evaluator.py`.
 
 ### `trainer.py`
 
 ##### Classes:
-- `Trainer` → (Legacy) Traditional training manager that handles the complete training workflow including training loops, validation, metrics tracking, and model checkpointing with automatic best model saving functionality.
-- `LightningTrainer` → **New PyTorch Lightning-based trainer wrapper** that provides a simplified interface to PyTorch Lightning's trainer with automatic checkpointing, logging, callbacks, and best practices. **This is the recommended approach.**
-
-##### PyTorch Lightning Benefits:
-- Automatic device placement (CPU/GPU/TPU)
-- Built-in callbacks (ModelCheckpoint, EarlyStopping, etc.)
-- Automatic logging to TensorBoard
-- Progress bars and training monitoring
-- Multi-GPU support
-- Less boilerplate code
+- `LightningTrainer` → Training wrapper that provides a simplified interface to PyTorch Lightning's trainer with automatic checkpointing, logging, callbacks, and best practices.
 
 ### `evaluator.py`
 
@@ -166,22 +156,13 @@ The training module provides classes for training and evaluating NN models using
 
 ### Typical usage
 
-**Using PyTorch Lightning (Recommended):**
-
 ```python
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from src.training.trainer import LightningTrainer
 from src.models.base_model import SimpleMLP
 
-# Create model (automatically a LightningModule)
-model = SimpleMLP(
-    input_dim=784,
-    hidden_dims=[256, 128],
-    output_dim=10,
-    learning_rate=1e-3,
-    criterion=nn.CrossEntropyLoss()
-)
+model = # Create a Loghtning model
 
 # Create Lightning trainer with desired configuration
 trainer = LightningTrainer(
@@ -202,40 +183,6 @@ trainer.fit(
 
 # Test the model
 trainer.test(model=model, test_loader=test_dataloader)
-```
-
-**Using Legacy Trainer:**
-
-```python
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-from src.training.trainer import Trainer
-from src.training.evaluator import Evaluator
-
-model = # model from base_model.py
-criterion = # loss function from torch.nn
-optimizer = # optimizer from torch.optim
-
-# Create trainer instance
-trainer = Trainer(model=model, criterion=criterion, optimizer=optimizer, device='cuda')
-
-# Train the model
-trainer.fit(
-    train_loader=train_dataloader,
-    val_loader=val_dataloader,
-    num_epochs=100,
-    metric_fn=your_metric_function,  # optional
-    save_best=True,
-    checkpoint_path='best_model.pth'
-)
-
-# Evaluate the model
-evaluator = Evaluator(model=model, device='cuda')
-results = evaluator.evaluate(
-    dataloader=test_dataloader,
-    criterion=criterion  # optional
-)
 ```
 
 

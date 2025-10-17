@@ -7,16 +7,12 @@ to set up and run a simple training pipeline using PyTorch Lightning.
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
 from pathlib import Path
 
 # Import project modules
 from config.config import load_config
-from models.base_model import SimpleMLP, SimpleCNN
+from models.base_model import SimpleMLP
 from training.trainer import LightningTrainer
-from training.evaluator import Evaluator
-from utils.metrics import accuracy
-from utils.visualization import plot_training_history
 
 
 def main():
@@ -31,7 +27,7 @@ def main():
     print("-" * 80)
     
     # Get default configuration
-    config = load_config("../configs/default_config.json")
+    config = load_config("configs/default_config.json")
     print(f"Experiment: {config.experiment_name}")
     print(f"Device: {config.device}")
     print(f"Batch size: {config.data.batch_size}")
@@ -51,15 +47,6 @@ def main():
         criterion=nn.CrossEntropyLoss()
     )
     mlp_model.summary()
-    
-    # Create a simple CNN model
-    cnn_model = SimpleCNN(
-        in_channels=1,
-        num_classes=10,
-        learning_rate=config.training.learning_rate,
-        criterion=nn.CrossEntropyLoss()
-    )
-    print(f"CNN Parameters: {cnn_model.get_num_parameters():,}")
     
     # 3. Dummy Dataset Example
     print("\n3. Creating Dummy Dataset")
@@ -145,16 +132,6 @@ def main():
     
     # Test the model with Lightning
     lightning_trainer.test(mlp_model, test_loader=val_loader)
-    
-    # Alternative: use the Evaluator class for more detailed analysis
-    evaluator = Evaluator(mlp_model, device=device)
-    results = evaluator.evaluate(val_loader, criterion=nn.CrossEntropyLoss())
-    
-    print(f"Validation Loss: {results['loss']:.4f}")
-    
-    # Compute accuracy
-    acc = accuracy(results['predictions'], results['targets'])
-    print(f"Validation Accuracy: {acc:.4f}")
     
     # 7. Visualization
     print("\n7. Visualization")

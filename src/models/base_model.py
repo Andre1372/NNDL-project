@@ -12,7 +12,6 @@ class BaseModel(pl.LightningModule):
     Base model class for all neural network models in the project.
     
     This provides a common interface for model saving, loading, and summary.
-    Now uses PyTorch Lightning for training and validation.
     """
     
     def __init__(self, learning_rate: float = 1e-3, criterion: Optional[nn.Module] = None):

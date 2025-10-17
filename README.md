@@ -58,8 +58,6 @@ Infine digitare (potrebbe metterci qualche minuto):
 pip install -r requirements.txt
 ```
 
-**Note**: Il progetto ora utilizza PyTorch Lightning per la gestione del training. PyTorch Lightning viene installato automaticamente con `requirements.txt`.
-
 #### Mac
 
 Forse è possibile sfruttare la GPU integrata nei processori M1, M2, M3, M4 che si chiama mps, quindi cancellare la riga 2 di `requirements.txt`. **Poi ricordarsi di non pushare questa modifica.**
@@ -68,7 +66,6 @@ Infine digitare (potrebbe metterci qualche minuto):
 pip install -r requirements.txt
 ```
 
-**Note**: Il progetto ora utilizza PyTorch Lightning per la gestione del training. PyTorch Lightning viene installato automaticamente con `requirements.txt`.
 
 ### 3. Test per verificare l'installazione
 
@@ -92,6 +89,7 @@ Questo script dimostra come:
 - Valutare le performance
 - Visualizzare i risultati con TensorBoard
 
+
 ### 5. Monitoraggio del training con TensorBoard
 
 PyTorch Lightning salva automaticamente i log del training. Per visualizzarli:
@@ -100,7 +98,6 @@ PyTorch Lightning salva automaticamente i log del training. Per visualizzarli:
 tensorboard --logdir=lightning_logs/
 ```
 
-Poi apri il browser all'indirizzo `http://localhost:6006/` per vedere metriche, grafici e altre informazioni sul training.
 
 ## Struttura del progetto
 
@@ -120,26 +117,11 @@ NNDL-project/
 ├── report/                 # Report LaTeX
 ├── results/                # Results of simulations (images)
 ├── lightning_logs/         # PyTorch Lightning logs (TensorBoard)
-└── requirements.txt        # Dipendenze Python (include PyTorch Lightning)
+└── requirements.txt        # Dipendenze Python
 ```
 
 Per informazioni dettagliate sulla struttura modulare del codice sorgente, consultare [src/README.md](src/README.md).
 
-## PyTorch Lightning
-
-Il progetto utilizza PyTorch Lightning, un framework che semplifica il codice PyTorch fornendo:
-- **Training loop automatizzato**: Non serve più scrivere manualmente i loop di training
-- **Multi-GPU support**: Facile scaling su più GPU
-- **Logging automatico**: Integrazione con TensorBoard, WandB, etc.
-- **Best practices**: Callbacks, checkpointing, early stopping out-of-the-box
-- **Codice più pulito**: Separazione tra logica del modello e training
-
-### Vantaggi principali:
-1. Meno codice boilerplate
-2. Meno possibilità di errori
-3. Migliore organizzazione del codice
-4. Facile debugging e profiling
-5. Portabilità tra diversi acceleratori (CPU, GPU, TPU)
 
 ## Report
 
