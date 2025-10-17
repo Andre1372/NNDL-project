@@ -103,14 +103,21 @@ train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_wor
 
 ## Models Module
 
-The models module contains neural network architectures. Includes only the file `base_model.py`.
+The models module contains neural network architectures using PyTorch Lightning. Includes only the file `base_model.py`.
 
 ### `base_model.py`
 
 ##### Classes:
-- `BaseModel` → Abstract base class providing common interface for all models with save/load methods, parameter counting, and model summary
-- `SimpleMLP` → Example implementation of Multi-Layer Perceptron
-- `SimpleCNN` → Example implementation of CNN
+- `BaseModel` → Abstract base class providing common interface for all models with save/load methods, parameter counting, and model summary. Now inherits from `pl.LightningModule` for PyTorch Lightning support.
+- `SimpleMLP` → Example implementation of Multi-Layer Perceptron with Lightning support
+- `SimpleCNN` → Example implementation of CNN with Lightning support
+
+##### PyTorch Lightning Methods:
+All models now include:
+- `training_step()` → Defines training logic for one batch
+- `validation_step()` → Defines validation logic for one batch
+- `test_step()` → Defines testing logic for one batch
+- `configure_optimizers()` → Configures optimizer(s) for training
 
 ### Typical usage
 
@@ -118,28 +125,39 @@ How to create a new model class:
 
 ```python
 # in base_model.py
+import pytorch_lightning as pl
+
 class CustomModel(BaseModel):
     """ Custom neural network architecture. """
     
-    def __init__(self, parameters):
-        super(CustomModel, self).__init__()
+    def __init__(self, parameters, learning_rate=1e-3, criterion=None):
+        super(CustomModel, self).__init__(learning_rate=learning_rate, criterion=criterion)
         """ Define the layers. """
     
     def forward(self, x):
         """ Return the NN output given the input. """
 ```
-Once created, the model will be passed to a trainer.
+Once created, the model will be passed to a PyTorch Lightning trainer.
 
 
 
 ## Training Module
 
-The training module provides classes for training and evaluating NN models. It contains two files `trainer.py`, `evaluator.py`.
+The training module provides classes for training and evaluating NN models using PyTorch Lightning. It contains two files `trainer.py`, `evaluator.py`.
 
 ### `trainer.py`
 
 ##### Classes:
-- `Trainer` → Training manager that handles the complete training workflow including training loops, validation, metrics tracking, and model checkpointing with automatic best model saving functionality.
+- `Trainer` → (Legacy) Traditional training manager that handles the complete training workflow including training loops, validation, metrics tracking, and model checkpointing with automatic best model saving functionality.
+- `LightningTrainer` → **New PyTorch Lightning-based trainer wrapper** that provides a simplified interface to PyTorch Lightning's trainer with automatic checkpointing, logging, callbacks, and best practices. **This is the recommended approach.**
+
+##### PyTorch Lightning Benefits:
+- Automatic device placement (CPU/GPU/TPU)
+- Built-in callbacks (ModelCheckpoint, EarlyStopping, etc.)
+- Automatic logging to TensorBoard
+- Progress bars and training monitoring
+- Multi-GPU support
+- Less boilerplate code
 
 ### `evaluator.py`
 
@@ -147,6 +165,46 @@ The training module provides classes for training and evaluating NN models. It c
 - `Evaluator` → Evaluation class for testing models.
 
 ### Typical usage
+
+**Using PyTorch Lightning (Recommended):**
+
+```python
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from src.training.trainer import LightningTrainer
+from src.models.base_model import SimpleMLP
+
+# Create model (automatically a LightningModule)
+model = SimpleMLP(
+    input_dim=784,
+    hidden_dims=[256, 128],
+    output_dim=10,
+    learning_rate=1e-3,
+    criterion=nn.CrossEntropyLoss()
+)
+
+# Create Lightning trainer with desired configuration
+trainer = LightningTrainer(
+    max_epochs=100,
+    accelerator='auto',  # automatically selects GPU/CPU
+    enable_checkpointing=True,
+    checkpoint_dir='checkpoints',
+    enable_early_stopping=True,
+    early_stopping_patience=5
+)
+
+# Train the model
+trainer.fit(
+    model=model,
+    train_loader=train_dataloader,
+    val_loader=val_dataloader
+)
+
+# Test the model
+trainer.test(model=model, test_loader=test_dataloader)
+```
+
+**Using Legacy Trainer:**
 
 ```python
 import torch

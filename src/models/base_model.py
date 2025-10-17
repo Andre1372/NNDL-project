@@ -4,21 +4,105 @@ Base model classes and architectures.
 
 import torch
 import torch.nn as nn
+import pytorch_lightning as pl
+from typing import Optional, Any
 
-class BaseModel(nn.Module):
+class BaseModel(pl.LightningModule):
     """
     Base model class for all neural network models in the project.
     
     This provides a common interface for model saving, loading, and summary.
+    Now uses PyTorch Lightning for training and validation.
     """
     
-    def __init__(self):
+    def __init__(self, learning_rate: float = 1e-3, criterion: Optional[nn.Module] = None):
         """ Initialize the base model. """
         super(BaseModel, self).__init__()
+        self.learning_rate = learning_rate
+        self.criterion = criterion if criterion is not None else nn.CrossEntropyLoss()
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """ Forward pass through the model."""
         raise NotImplementedError("Subclasses must implement forward()")
+    
+    def training_step(self, batch: tuple, batch_idx: int) -> torch.Tensor:
+        """
+        Training step for PyTorch Lightning.
+        
+        Args:
+            batch: Tuple of (inputs, targets)
+            batch_idx: Index of the batch
+            
+        Returns:
+            Loss tensor
+        """
+        inputs, targets = batch
+        outputs = self(inputs)
+        loss = self.criterion(outputs, targets)
+        
+        # Log metrics
+        self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
+        
+        return loss
+    
+    def validation_step(self, batch: tuple, batch_idx: int) -> torch.Tensor:
+        """
+        Validation step for PyTorch Lightning.
+        
+        Args:
+            batch: Tuple of (inputs, targets)
+            batch_idx: Index of the batch
+            
+        Returns:
+            Loss tensor
+        """
+        inputs, targets = batch
+        outputs = self(inputs)
+        loss = self.criterion(outputs, targets)
+        
+        # Calculate accuracy
+        pred_classes = outputs.argmax(dim=1)
+        acc = (pred_classes == targets).float().mean()
+        
+        # Log metrics
+        self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log('val_acc', acc, on_step=False, on_epoch=True, prog_bar=True)
+        
+        return loss
+    
+    def test_step(self, batch: tuple, batch_idx: int) -> torch.Tensor:
+        """
+        Test step for PyTorch Lightning.
+        
+        Args:
+            batch: Tuple of (inputs, targets)
+            batch_idx: Index of the batch
+            
+        Returns:
+            Loss tensor
+        """
+        inputs, targets = batch
+        outputs = self(inputs)
+        loss = self.criterion(outputs, targets)
+        
+        # Calculate accuracy
+        pred_classes = outputs.argmax(dim=1)
+        acc = (pred_classes == targets).float().mean()
+        
+        # Log metrics
+        self.log('test_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log('test_acc', acc, on_step=False, on_epoch=True, prog_bar=True)
+        
+        return loss
+    
+    def configure_optimizers(self) -> torch.optim.Optimizer:
+        """
+        Configure optimizer for PyTorch Lightning.
+        
+        Returns:
+            Optimizer instance
+        """
+        return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
     
     def get_num_parameters(self) -> int:
         """ Get the total number of trainable parameters. """
@@ -50,9 +134,17 @@ class SimpleMLP(BaseModel):
     This is a template/example model architecture.
     """
     
-    def __init__(self, input_dim: int, hidden_dims: list, output_dim: int, dropout: float = 0.5):
+    def __init__(
+        self, 
+        input_dim: int, 
+        hidden_dims: list, 
+        output_dim: int, 
+        dropout: float = 0.5,
+        learning_rate: float = 1e-3,
+        criterion: Optional[nn.Module] = None
+    ):
         """ Initialize the MLP. """
-        super(SimpleMLP, self).__init__()
+        super(SimpleMLP, self).__init__(learning_rate=learning_rate, criterion=criterion)
         
         layers = []
         prev_dim = input_dim
@@ -81,10 +173,12 @@ class SimpleCNN(BaseModel):
     def __init__(
         self,
         in_channels: int = 1,
-        num_classes: int = 10
+        num_classes: int = 10,
+        learning_rate: float = 1e-3,
+        criterion: Optional[nn.Module] = None
     ):
         """ Initialize the CNN. """
-        super(SimpleCNN, self).__init__()
+        super(SimpleCNN, self).__init__(learning_rate=learning_rate, criterion=criterion)
         
         self.features = nn.Sequential(
             nn.Conv2d(in_channels, 32, kernel_size=3, padding=1),

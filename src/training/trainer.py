@@ -7,6 +7,8 @@ import torch.nn as nn
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from typing import Dict, Optional, Callable
+import pytorch_lightning as pl
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
 class Trainer:
     """
@@ -166,3 +168,122 @@ class Trainer:
                 best_val_loss = val_result['loss']
                 torch.save(self.model.state_dict(), checkpoint_path)
                 print(f"Best model saved to {checkpoint_path}")
+
+
+class LightningTrainer:
+    """
+    PyTorch Lightning-based trainer wrapper.
+    
+    This provides a simplified interface to PyTorch Lightning's trainer
+    with automatic checkpointing, logging, and best practices.
+    """
+    
+    def __init__(
+        self,
+        max_epochs: int = 10,
+        accelerator: str = 'auto',
+        devices: int = 1,
+        log_every_n_steps: int = 50,
+        enable_checkpointing: bool = True,
+        checkpoint_dir: str = 'checkpoints',
+        enable_early_stopping: bool = False,
+        early_stopping_patience: int = 5,
+        early_stopping_monitor: str = 'val_loss',
+        early_stopping_mode: str = 'min'
+    ):
+        """
+        Initialize the Lightning trainer.
+        
+        Args:
+            max_epochs: Maximum number of training epochs
+            accelerator: Device accelerator ('auto', 'cpu', 'gpu', 'mps')
+            devices: Number of devices to use
+            log_every_n_steps: Logging frequency
+            enable_checkpointing: Whether to save checkpoints
+            checkpoint_dir: Directory to save checkpoints
+            enable_early_stopping: Whether to use early stopping
+            early_stopping_patience: Number of epochs with no improvement after which to stop
+            early_stopping_monitor: Metric to monitor for early stopping
+            early_stopping_mode: Whether to minimize or maximize the monitored metric
+        """
+        self.max_epochs = max_epochs
+        self.accelerator = accelerator
+        self.devices = devices
+        
+        # Setup callbacks
+        callbacks = []
+        
+        if enable_checkpointing:
+            checkpoint_callback = ModelCheckpoint(
+                dirpath=checkpoint_dir,
+                filename='best-{epoch:02d}-{val_loss:.2f}',
+                monitor='val_loss',
+                mode='min',
+                save_top_k=1,
+                save_last=True
+            )
+            callbacks.append(checkpoint_callback)
+        
+        if enable_early_stopping:
+            early_stop_callback = EarlyStopping(
+                monitor=early_stopping_monitor,
+                patience=early_stopping_patience,
+                mode=early_stopping_mode,
+                verbose=True
+            )
+            callbacks.append(early_stop_callback)
+        
+        # Initialize PyTorch Lightning trainer
+        self.trainer = pl.Trainer(
+            max_epochs=max_epochs,
+            accelerator=accelerator,
+            devices=devices,
+            log_every_n_steps=log_every_n_steps,
+            callbacks=callbacks,
+            enable_progress_bar=True,
+            enable_model_summary=True
+        )
+    
+    def fit(
+        self,
+        model: pl.LightningModule,
+        train_loader: DataLoader,
+        val_loader: Optional[DataLoader] = None
+    ):
+        """
+        Train the model.
+        
+        Args:
+            model: PyTorch Lightning module
+            train_loader: Training data loader
+            val_loader: Optional validation data loader
+        """
+        self.trainer.fit(model, train_loader, val_loader)
+    
+    def test(
+        self,
+        model: pl.LightningModule,
+        test_loader: DataLoader
+    ):
+        """
+        Test the model.
+        
+        Args:
+            model: PyTorch Lightning module
+            test_loader: Test data loader
+        """
+        self.trainer.test(model, test_loader)
+    
+    def validate(
+        self,
+        model: pl.LightningModule,
+        val_loader: DataLoader
+    ):
+        """
+        Validate the model.
+        
+        Args:
+            model: PyTorch Lightning module
+            val_loader: Validation data loader
+        """
+        self.trainer.validate(model, val_loader)

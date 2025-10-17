@@ -2,7 +2,7 @@
 Example usage of the modular src/ structure.
 
 This script demonstrates how to use the different components of the project
-to set up and run a simple training pipeline.
+to set up and run a simple training pipeline using PyTorch Lightning.
 """
 
 import torch
@@ -13,7 +13,7 @@ from pathlib import Path
 # Import project modules
 from config.config import load_config
 from models.base_model import SimpleMLP, SimpleCNN
-from training.trainer import Trainer
+from training.trainer import LightningTrainer
 from training.evaluator import Evaluator
 from utils.metrics import accuracy
 from utils.visualization import plot_training_history
@@ -41,19 +41,23 @@ def main():
     print("\n2. Model Creation")
     print("-" * 80)
     
-    # Create a simple MLP model
+    # Create a simple MLP model with Lightning
     mlp_model = SimpleMLP(
         input_dim=784,
         hidden_dims=[256, 128],
         output_dim=10,
-        dropout=0.5
+        dropout=0.5,
+        learning_rate=config.training.learning_rate,
+        criterion=nn.CrossEntropyLoss()
     )
     mlp_model.summary()
     
     # Create a simple CNN model
     cnn_model = SimpleCNN(
         in_channels=1,
-        num_classes=10
+        num_classes=10,
+        learning_rate=config.training.learning_rate,
+        criterion=nn.CrossEntropyLoss()
     )
     print(f"CNN Parameters: {cnn_model.get_num_parameters():,}")
     
@@ -93,56 +97,58 @@ def main():
     print(f"Validation samples: {len(val_dataset)}")
     
     # 4. Setup Training
-    print("\n4. Setting up Training")
+    print("\n4. Setting up Training with PyTorch Lightning")
     print("-" * 80)
     
     # Determine device
     if torch.cuda.is_available():
         device = "cuda"
+        accelerator = "gpu"
     elif torch.backends.mps.is_available():
         device = "mps"
+        accelerator = "mps"
     else:
         device = "cpu"
+        accelerator = "cpu"
     
     print(f"Using device: {device}")
     
-    # Setup loss and optimizer
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(mlp_model.parameters(), lr=config.training.learning_rate)
-    
-    # Create trainer
-    trainer = Trainer(
-        model=mlp_model,
-        criterion=criterion,
-        optimizer=optimizer,
-        device=device
+    # Create Lightning trainer
+    lightning_trainer = LightningTrainer(
+        max_epochs=3,
+        accelerator=accelerator,
+        devices=1,
+        enable_checkpointing=True,
+        checkpoint_dir="checkpoints",
+        enable_early_stopping=False
     )
     
-    print("Trainer initialized successfully")
+    print("Lightning Trainer initialized successfully")
     
     # 5. Training (small example)
-    print("\n5. Training Model (3 epochs demo)")
+    print("\n5. Training Model with Lightning (3 epochs demo)")
     print("-" * 80)
     
     # Create directories for outputs
     Path("checkpoints").mkdir(exist_ok=True)
     
     # Train for a few epochs (small demo)
-    trainer.fit(
+    lightning_trainer.fit(
+        model=mlp_model,
         train_loader=train_loader,
-        val_loader=val_loader,
-        num_epochs=3,
-        metric_fn=accuracy,
-        save_best=True,
-        checkpoint_path="checkpoints/example_model.pth"
+        val_loader=val_loader
     )
     
     # 6. Evaluation
     print("\n6. Model Evaluation")
     print("-" * 80)
     
+    # Test the model with Lightning
+    lightning_trainer.test(mlp_model, test_loader=val_loader)
+    
+    # Alternative: use the Evaluator class for more detailed analysis
     evaluator = Evaluator(mlp_model, device=device)
-    results = evaluator.evaluate(val_loader, criterion=criterion)
+    results = evaluator.evaluate(val_loader, criterion=nn.CrossEntropyLoss())
     
     print(f"Validation Loss: {results['loss']:.4f}")
     
@@ -154,16 +160,14 @@ def main():
     print("\n7. Visualization")
     print("-" * 80)
     
-    # Plot training history
-    Path("../results").mkdir(exist_ok=True)
-    plot_training_history(
-        train_losses=trainer.train_losses,
-        val_losses=trainer.val_losses,
-        train_metrics=trainer.train_metrics,
-        val_metrics=trainer.val_metrics,
-        metric_name="Accuracy",
-        save_path="results/training_history.png"
-    )
+    # Note: With Lightning, metrics are logged automatically
+    # You can access them from the trainer's logged metrics
+    # For visualization, you can use TensorBoard or the logged metrics
+    print("Training metrics are logged by PyTorch Lightning")
+    print("Use TensorBoard to visualize: tensorboard --logdir=lightning_logs/")
+    
+    # For custom visualization, you'd need to extract metrics from logs
+    # or use callbacks during training
     
     # 8. Model Saving/Loading
     print("\n8. Model Save/Load Demo")
@@ -176,7 +180,8 @@ def main():
     new_model = SimpleMLP(
         input_dim=784,
         hidden_dims=[256, 128],
-        output_dim=10
+        output_dim=10,
+        learning_rate=config.training.learning_rate
     )
     new_model.load("checkpoints/final_model.pth", device=device)
     print("Model loaded successfully!")
@@ -185,10 +190,12 @@ def main():
     print("Example completed successfully!")
     print("=" * 80)
     print("\nGenerated files:")
-    print("  - configs/example_config.json")
-    print("  - checkpoints/example_model.pth")
-    print("  - checkpoints/final_model.pth")
-    print("  - results/training_history.png")
+    print("  - checkpoints/best-*.ckpt (Lightning checkpoint)")
+    print("  - checkpoints/last.ckpt (Last checkpoint)")
+    print("  - checkpoints/final_model.pth (State dict)")
+    print("  - lightning_logs/ (TensorBoard logs)")
+    print("\nTo view training logs, run:")
+    print("  tensorboard --logdir=lightning_logs/")
 
 
 if __name__ == "__main__":
