@@ -1,6 +1,9 @@
 
 # Environment
 venv_deep/
+checkpoints/
+__pycache__/
+lightning_logs/
 
 # VSCode settings
 .vscode/

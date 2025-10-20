@@ -80,3 +80,4 @@ try:
 
 except ImportError:
     print("PyTorch non è installato")
+    
