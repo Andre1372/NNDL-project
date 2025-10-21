@@ -12,10 +12,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Import project modules
-from dataset import PolyDataset
-from transforms import ToTensor
-from models import SimpleMLP
-from trainer import LightningTrainer
+from data.dataset import PolyDataset
+from data.transforms import ToTensor
+from models.base_model import SimpleMLP
+from training.trainer import LightningTrainer
 
 def poly_model(x, beta, noise_std=0):
     """
@@ -70,7 +70,7 @@ def main():
         hidden_dims=[50, 100, 50],
         output_dim=1,
         dropout=0,
-        learning_rate=1e-2,
+        learning_rate=1e-3,
         criterion=nn.MSELoss()
     )
     mlp_model.summary()
@@ -83,7 +83,12 @@ def main():
     lightning_trainer = LightningTrainer(
         max_epochs=50,
         enable_checkpointing=True,
-        enable_early_stopping=False
+        enable_early_stopping=False,
+        log_every_n_steps=4,
+
+        enable_logging=True,
+        experiment_name='demo',
+        overwrite_last=False,
     )
     
     # Create directories for outputs
@@ -99,6 +104,9 @@ def main():
     # 6. Evaluation
     print("\n6. Model Evaluation")
     print("-" * 80)
+
+    print("\nTo view training logs, run:")
+    print("  tensorboard --logdir=lightning_logs/")
     
     plt.figure(figsize=(12,8))
     x_highres = np.linspace(0,1,1000)*5

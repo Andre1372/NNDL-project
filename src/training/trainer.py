@@ -1,8 +1,13 @@
 
 from torch.utils.data import DataLoader
 from typing import Optional
+import warnings
+import os
+import re
+import shutil
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+from pytorch_lightning.loggers import TensorBoardLogger
 
 
 class LightningTrainer:
@@ -17,14 +22,18 @@ class LightningTrainer:
         self,
         max_epochs: int = 10,                       # Maximum number of training epochs
         accelerator: str = 'auto',                  # Device accelerator ('auto', 'cpu', 'gpu', 'mps')
-        log_every_n_steps: int = 50,                # Logging frequency
+        log_every_n_steps: int = 1,                 # Logging frequency
 
         enable_checkpointing: bool = True,          # Whether to save checkpoints
 
         enable_early_stopping: bool = False,        # Whether to use early stopping
         early_stopping_patience: int = 5,           # Number of epochs with no improvement after which to stop
         early_stopping_monitor: str = 'val_loss',   # Metric to monitor for early stopping
-        early_stopping_mode: str = 'min'            # Whether to minimize or maximize the monitored metric
+        early_stopping_mode: str = 'min',           # Whether to minimize or maximize the monitored metric
+
+        enable_logging: bool = False,               # Whether to enable TensorBoard logging
+        experiment_name: str = 'default',           # Experiment name for logging
+        overwrite_last: bool = False,               # Whether to overwrite the last version
     ):
         """ Initialize the Lightning trainer. """
 
@@ -55,11 +64,49 @@ class LightningTrainer:
             )
             callbacks.append(early_stop_callback)
         
-        # Initialize PyTorch Lightning trainer
+        # Quiet some recurring informational/warning messages coming from PyTorch Lightning
+        warnings.filterwarnings(
+            "ignore",
+            message=r"Checkpoint directory .* exists and is not empty",
+        )
+        warnings.filterwarnings(
+            "ignore",
+            message=r"The '.*_dataloader' does not have many workers which may be a bottleneck",
+        )
+        warnings.filterwarnings(
+            "ignore",
+            message=r"The number of training batches \(.*\) is smaller than the logging interval",
+        )
+
+        # Prepare optional logger which allows controlling where lightning
+        # writes `lightning_logs/<experiment_name>/version_*`.
+        logger = False
+        if enable_logging:
+            exp_path = os.path.join('lightning_logs', experiment_name)
+            if overwrite_last:
+                if os.path.isdir(exp_path):
+                    # Find existing version_* subdirectories and pick the highest-numbered one.
+                    candidates = []
+                    for name in os.listdir(exp_path):
+                        m = re.match(r"version_(\d+)$", name)
+                        if m:
+                            candidates.append((int(m.group(1)), name))
+                    if candidates:
+                        candidates.sort()
+                        _, last_name = candidates[-1]
+                        to_remove = os.path.join(exp_path, last_name)
+                        if os.path.isdir(to_remove):
+                            shutil.rmtree(to_remove)
+
+            logger = TensorBoardLogger(save_dir='lightning_logs', name=experiment_name)
+
+        # Initialize the Trainer with quieter defaults: no progress bar and
+        # no automatic model summary (keeps stdout cleaner). Attach the
+        # prepared logger (or False) accordingly.
         self.trainer = pl.Trainer(
             max_epochs=max_epochs,
             accelerator=accelerator,
-            logger=True,
+            logger=logger,
             log_every_n_steps=log_every_n_steps,
             callbacks=callbacks,
             enable_progress_bar=True,
