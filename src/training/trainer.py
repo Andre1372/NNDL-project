@@ -43,14 +43,24 @@ class LightningTrainer:
         self.checkpoint_callback = enable_checkpointing     # contains false or the callback
         self.logger = enable_logging                        # contains false or the logger
         self.experiment_name = experiment_name
+        self.enable_early_stopping = enable_early_stopping
+        self.early_stopping_patience = early_stopping_patience
+        self.early_stopping_monitor = early_stopping_monitor
+        self.early_stopping_mode = early_stopping_mode
 
         # Setup callbacks
         callbacks = []
         
+        # Resolve project root (two levels above this file: src/training -> repo root)
+        self.repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        self.checkpoints_dir = os.path.join(self.repo_root, 'checkpoints')
+        self.logs_dir = os.path.join(self.repo_root, 'lightning_logs')
+        self.saved_models_dir = os.path.join(self.repo_root, 'saved_models')
+
         if enable_checkpointing:
-            os.makedirs("checkpoints", exist_ok=True)
+            os.makedirs(self.checkpoints_dir, exist_ok=True)
             checkpoint_callback = ModelCheckpoint(
-                dirpath='checkpoints',
+                dirpath=self.checkpoints_dir,
                 filename='best-{epoch:02d}-{val_loss:.2f}',
                 monitor='val_loss',
                 mode='min',
@@ -72,23 +82,17 @@ class LightningTrainer:
             callbacks.append(early_stop_callback)
         
         # Quiet some recurring informational/warning messages coming from PyTorch Lightning
-        warnings.filterwarnings(
-            "ignore",
+        warnings.filterwarnings("ignore",
             message=r"Checkpoint directory .* exists and is not empty",
         )
-        warnings.filterwarnings(
-            "ignore",
+        warnings.filterwarnings("ignore",
             message=r"The '.*_dataloader' does not have many workers which may be a bottleneck",
-        )
-        warnings.filterwarnings(
-            "ignore",
-            message=r"The number of training batches \(.*\) is smaller than the logging interval",
         )
 
         # Prepare optional logger which allows controlling where lightning
         # writes `lightning_logs/<experiment_name>/version_*`.
         if enable_logging:
-            exp_path = os.path.join('lightning_logs', experiment_name)
+            exp_path = os.path.join(self.logs_dir, experiment_name)
             if overwrite_last:
                 if os.path.isdir(exp_path):
                     # Find existing version_* subdirectories and pick the highest-numbered one.
@@ -104,11 +108,10 @@ class LightningTrainer:
                         if os.path.isdir(to_remove):
                             shutil.rmtree(to_remove)
 
-            self.logger = TensorBoardLogger(save_dir='lightning_logs', name=experiment_name)
+            # Use absolute logs_dir so Lightning writes logs under the repository root
+            self.logger = TensorBoardLogger(save_dir=self.logs_dir, name=experiment_name)
 
-        # Initialize the Trainer with quieter defaults: no progress bar and
-        # no automatic model summary (keeps stdout cleaner). Attach the
-        # prepared logger (or False) accordingly.
+        # Initialize the Trainer
         self.trainer = pl.Trainer(
             max_epochs=max_epochs,
             accelerator=accelerator,
@@ -125,7 +128,7 @@ class LightningTrainer:
 
         # After training, export last checkpoint and configs to saved_models
         try:
-            self._finalize_run(model)
+            self.save_model(model)
         except Exception:
             # Do not fail training if export fails; print a warning instead
             import traceback
@@ -139,7 +142,7 @@ class LightningTrainer:
         """ Validate the model. """
         self.trainer.validate(model, val_loader)
 
-    def _finalize_run(self, model: pl.LightningModule):
+    def save_model(self, model: pl.LightningModule):
         """Create a saved_models/<experiment>/version_<N>/ with the last checkpoint and a config JSON.
 
         This uses the Trainer's logger to discover the current `version` and the
@@ -149,60 +152,39 @@ class LightningTrainer:
             # no logger configured or no checkpoint saved; nothing to do
             return
 
-        try:
-            log_dir = self.logger.log_dir
+        log_dir = self.logger.log_dir
 
-            m = re.search(r"version_(\d+)", log_dir)
-            version = m.group(1) if m else '0'
+        m = re.search(r"version_(\d+)", log_dir)
+        version = m.group(1) if m else '0'
 
-            # create saved_models/<experiment>/version_<N>/ directory
-            saved_dir = os.path.join('saved_models', self.experiment_name, f"version_{version}")
-            os.makedirs(saved_dir, exist_ok=True)
+        # create saved_models/<experiment>/version_<N>/ directory under repo root
+        saved_dir = os.path.join(self.saved_models_dir, self.experiment_name, f"version_{version}")
+        os.makedirs(saved_dir, exist_ok=True)
 
-            # determine checkpoint path
-            ckpt_src = self.checkpoint_callback.last_model_path
+        # determine checkpoint path
+        ckpt_src = self.checkpoint_callback.last_model_path
 
-            # fallback: look for .ckpt files in checkpoints/ directory
-            if not os.path.isfile(ckpt_src):
-                ckpt_dir = 'checkpoints'
-                if os.path.isdir(ckpt_dir):
-                    files = [os.path.join(ckpt_dir, f) for f in os.listdir(ckpt_dir) if f.endswith('.ckpt')]
-                    if files:
-                        # pick the most recent file
-                        files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
-                        ckpt_src = files[0]
+        # copy checkpoint into saved_dir
+        if os.path.isfile(ckpt_src):
+            shutil.copy2(ckpt_src, os.path.join(saved_dir, os.path.basename(ckpt_src)))
 
-            # copy checkpoint into saved_dir
-            if os.path.isfile(ckpt_src):
-                shutil.copy2(ckpt_src, os.path.join(saved_dir, os.path.basename(ckpt_src)))
+        # collect config: prefer model.hparams if present
+        cfg = {}
+        cfg['model_hparams'] = dict(model.hparams)
 
-            # collect config: prefer model.hparams if present
-            cfg = {}
-            try:
-                if hasattr(model, 'hparams') and model.hparams is not None:
-                    # hparams can be Namespace or dict-like
-                    try:
-                        cfg['model_hparams'] = dict(model.hparams)
-                    except Exception:
-                        # fallback to string representation
-                        cfg['model_hparams'] = str(model.hparams)
-            except Exception:
-                cfg['model_hparams'] = None
+        # add training/trainer metadata
+        cfg['training'] = {
+            'max_epochs': self.max_epochs,
+            'accelerator': self.accelerator,
+            'log_dir': log_dir
+        }
+        if self.enable_early_stopping:
+            cfg['training']['enable_early_stopping'] = self.enable_early_stopping
+            cfg['training']['early_stopping_patience'] = self.early_stopping_patience
+            cfg['training']['early_stopping_monitor'] = self.early_stopping_monitor
+            cfg['training']['early_stopping_mode'] = self.early_stopping_mode
 
-            # add training/trainer metadata
-            cfg['training'] = {
-                'max_epochs': self.max_epochs,
-                'accelerator': self.accelerator,
-                'log_dir': log_dir,
-                'timestamp': __import__('time').ctime()
-            }
-
-            # write config.json
-            cfg_path = os.path.join(saved_dir, 'config.json')
-            with open(cfg_path, 'w', encoding='utf-8') as fh:
-                json.dump(cfg, fh, ensure_ascii=False, indent=4)
-
-        except Exception:
-            # swallow errors to avoid breaking training pipeline
-            import traceback
-            traceback.print_exc()
+        # write config.json
+        cfg_path = os.path.join(saved_dir, 'config.json')
+        with open(cfg_path, 'w', encoding='utf-8') as fh:
+            json.dump(cfg, fh, ensure_ascii=False, indent=4)

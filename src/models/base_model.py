@@ -2,7 +2,6 @@
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
-from typing import Optional
 
 class BaseModel(pl.LightningModule):
     """
@@ -11,12 +10,12 @@ class BaseModel(pl.LightningModule):
     This provides a common interface for model saving, loading, and summary.
     """
     
-    def __init__(self, learning_rate: float = 1e-3, criterion: Optional[nn.Module] = None):
+    def __init__(self, criterion: nn.Module, learning_rate: float = 1e-3):
         """ Initialize the base model. """
         super(BaseModel, self).__init__()
         self.learning_rate = learning_rate
-        self.criterion = criterion if criterion is not None else nn.CrossEntropyLoss()
-    
+        self.criterion = criterion
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """ Forward pass through the model."""
         raise NotImplementedError("Subclasses must implement forward()")
@@ -112,9 +111,9 @@ class SimpleMLP(BaseModel):
         input_dim: int, 
         hidden_dims: list, 
         output_dim: int, 
+        criterion: nn.Module,
         dropout: float = 0.5,
-        learning_rate: float = 1e-3,
-        criterion: Optional[nn.Module] = None
+        learning_rate: float = 1e-3
     ):
 
         super(SimpleMLP, self).__init__(learning_rate=learning_rate, criterion=criterion)
@@ -131,6 +130,18 @@ class SimpleMLP(BaseModel):
         layers.append(nn.Linear(prev_dim, output_dim))
         
         self.network = nn.Sequential(*layers)
+        
+        # Save a serializable hyperparameter dict on the model so that training exports (checkpoints/configs) can include the model constructor arguments
+        hparams_safe = {
+            'class_name': self.__class__.__name__,
+            'input_dim': input_dim,
+            'hidden_dims': hidden_dims,
+            'output_dim': output_dim,
+            'dropout': dropout,
+            'learning_rate': learning_rate,
+            'criterion': criterion.__class__.__name__,
+        }
+        self.save_hyperparameters(hparams_safe)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
 
@@ -138,4 +149,4 @@ class SimpleMLP(BaseModel):
     
     def configure_optimizers(self) -> torch.optim.Optimizer:
 
-        return torch.optim.Adam(self.network.parameters(), lr=1e-2)
+        return torch.optim.Adam(self.network.parameters(), lr=self.learning_rate)
