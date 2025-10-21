@@ -7,7 +7,6 @@ to set up and run a simple training pipeline using PyTorch Lightning.
 
 import torch
 import torch.nn as nn
-from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -82,17 +81,16 @@ def main():
     # Create Lightning trainer
     lightning_trainer = LightningTrainer(
         max_epochs=50,
-        enable_checkpointing=True,
-        enable_early_stopping=False,
         log_every_n_steps=4,
+
+        enable_checkpointing=True,
+
+        enable_early_stopping=False,
 
         enable_logging=True,
         experiment_name='demo',
-        overwrite_last=False,
+        overwrite_last=True,
     )
-    
-    # Create directories for outputs
-    Path("checkpoints").mkdir(exist_ok=True)
     
     # Train for a few epochs (small demo)
     lightning_trainer.fit(
