@@ -67,33 +67,18 @@ pip install -r requirements.txt
 ```
 
 
-### 3. Test per verificare l'installazione
+### 3. Test iniziali
 
-È possibile verificare il setup del progetto runnando il file `hardware_test.py` per testare la potenza di calcolo dell'hardware.
+È possibile verificare la potenza di calcolo dell'hardware della macchina runnando il file `hardware_test.py` nella cartella src.
 
-```bash
-python src/hardware_test.py
-```
-
-### 4. Esempio di utilizzo
-
-Per vedere come utilizzare la nuova struttura modulare del progetto con PyTorch Lightning, esegui lo script di esempio:
-
-```bash
-python src/example_usage.py
-```
-
-Questo script dimostra come:
-- Gestire le configurazioni
-- Creare e addestrare modelli con PyTorch Lightning
-- Valutare le performance
-- Visualizzare i risultati con TensorBoard
+Mentre attraverso il file `example_usage.ipynb` si può testare la corretta installazione dei pacchetti.
+Questo file eseguirà il training di una semplice rete neurale feedforward per risolvere il problema di regressione.
 
 
-### 5. Monitoraggio del training con TensorBoard
 
-PyTorch Lightning salva automaticamente i log del training. Per visualizzarli:
+### 4. Monitoraggio del training con TensorBoard
 
+PyTorch Lightning salva automaticamente i log del training. Per visualizzarli eseguire dal terminale il comando:
 ```bash
 tensorboard --logdir=lightning_logs/
 ```
@@ -104,19 +89,18 @@ tensorboard --logdir=lightning_logs/
 ```
 NNDL-project/
 ├── src/                    # Codice sorgente del progetto (modular structure)
+│   ├── config/            # Configuration management
 │   ├── data/              # Data loading and preprocessing
 │   ├── models/            # PyTorch Lightning model architectures
 │   ├── training/          # Training and evaluation with Lightning
-│   ├── utils/             # Utility functions (logging, metrics, visualization)
-│   ├── config/            # Configuration management
+│   ├── utils/             # Utility functions
 │   └── README.md          # Documentazione dettagliata della struttura src/
-├── configs/                # Configuration files json
 ├── data/                   # Dataset
-├── models/                 # Modelli salvati
+├── checkpoints/            # Checkpoints del modello durante il training (pytorch)
+├── saved_models/           # Modelli salvati al termine del training
+├── lightning_logs/         # PyTorch Lightning logs (TensorBoard)
 ├── notebooks/              # Jupyter notebooks per esperimenti
 ├── report/                 # Report LaTeX
-├── results/                # Results of simulations (images)
-├── lightning_logs/         # PyTorch Lightning logs (TensorBoard)
 └── requirements.txt        # Dipendenze Python
 ```
 
