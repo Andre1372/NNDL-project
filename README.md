@@ -58,6 +58,17 @@ Infine digitare (potrebbe metterci qualche minuto):
 pip install -r requirements.txt
 ```
 
+Ora è necessario installare fluidsynth per riprodurre file audio.
+Una volta aperta una PowerShell da amministratore eseguire:
+```bash
+choco install fluidsynth
+```
+Per verificare la corretta installazione digitare
+```bash
+fluidsynth -V
+```
+
+
 #### Mac
 
 Forse è possibile sfruttare la GPU integrata nei processori M1, M2, M3, M4 che si chiama mps, quindi cancellare la riga 2 di `requirements.txt`. **Poi ricordarsi di non pushare questa modifica.**
@@ -66,34 +77,32 @@ Infine digitare (potrebbe metterci qualche minuto):
 pip install -r requirements.txt
 ```
 
+Ora è **necessario installare fluidsynth** per riprodurre file audio.
 
-### 3. Test per verificare l'installazione
 
-È possibile verificare il setup del progetto runnando il file `hardware_test.py` per testare la potenza di calcolo dell'hardware.
+### 3. Download del dataset
 
-```bash
-python src/hardware_test.py
-```
+Per scaricare il dataset da inserire nella cartella /data visitare il link [https://colinraffel.com/projects/lmd/](https://colinraffel.com/projects/lmd/).
 
-### 4. Esempio di utilizzo
+In questa pagina copiare il mirror link relativo a Clean MIDI subset e incollarlo in una nuova pagina.
+Poichè la sorgente non è protetta è necessario consentire il download poichè il browser cercherà di bloccarlo.
 
-Per vedere come utilizzare la nuova struttura modulare del progetto con PyTorch Lightning, esegui lo script di esempio:
+In seguito estrarre il dataset ed inserirlo nella cartella data.
+Dovreste ritrovarvi nella situazione _/data/clean_midi/_ che contiene una serie di sottocartelle contenenti i file .mid.
 
-```bash
-python src/example_usage.py
-```
 
-Questo script dimostra come:
-- Gestire le configurazioni
-- Creare e addestrare modelli con PyTorch Lightning
-- Valutare le performance
-- Visualizzare i risultati con TensorBoard
+### 4. Test iniziali
+
+È possibile verificare la potenza di calcolo dell'hardware della macchina runnando il file `hardware_test.py` nella cartella src.
+
+Mentre attraverso il file `example_usage.ipynb` si può testare la corretta installazione dei pacchetti.
+Questo file eseguirà il training di una semplice rete neurale feedforward per risolvere il problema di regressione.
+
 
 
 ### 5. Monitoraggio del training con TensorBoard
 
-PyTorch Lightning salva automaticamente i log del training. Per visualizzarli:
-
+PyTorch Lightning salva automaticamente i log del training. Per visualizzarli eseguire dal terminale il comando:
 ```bash
 tensorboard --logdir=lightning_logs/
 ```
@@ -104,19 +113,18 @@ tensorboard --logdir=lightning_logs/
 ```
 NNDL-project/
 ├── src/                    # Codice sorgente del progetto (modular structure)
+│   ├── config/            # Configuration management
 │   ├── data/              # Data loading and preprocessing
 │   ├── models/            # PyTorch Lightning model architectures
 │   ├── training/          # Training and evaluation with Lightning
-│   ├── utils/             # Utility functions (logging, metrics, visualization)
-│   ├── config/            # Configuration management
+│   ├── utils/             # Utility functions
 │   └── README.md          # Documentazione dettagliata della struttura src/
-├── configs/                # Configuration files json
 ├── data/                   # Dataset
-├── models/                 # Modelli salvati
+├── checkpoints/            # Checkpoints del modello durante il training (pytorch)
+├── saved_models/           # Modelli salvati al termine del training
+├── lightning_logs/         # PyTorch Lightning logs (TensorBoard)
 ├── notebooks/              # Jupyter notebooks per esperimenti
 ├── report/                 # Report LaTeX
-├── results/                # Results of simulations (images)
-├── lightning_logs/         # PyTorch Lightning logs (TensorBoard)
 └── requirements.txt        # Dipendenze Python
 ```
 

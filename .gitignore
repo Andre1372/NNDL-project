@@ -5,6 +5,8 @@ checkpoints/
 __pycache__/
 lightning_logs/
 saved_models/
+clean_midi/
+processed_midi_matrices/
 
 # VSCode settings
 .vscode/
