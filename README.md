@@ -103,6 +103,7 @@ Questo file eseguirà il training di una semplice rete neurale feedforward per r
 ### 5. Monitoraggio del training con TensorBoard
 
 PyTorch Lightning salva automaticamente i log del training. Per visualizzarli eseguire dal terminale il comando:
+PyTorch Lightning salva automaticamente i log del training. Per visualizzarli eseguire dal terminale il comando:
 ```bash
 tensorboard --logdir=lightning_logs/
 ```
@@ -114,12 +115,17 @@ tensorboard --logdir=lightning_logs/
 NNDL-project/
 ├── src/                    # Codice sorgente del progetto (modular structure)
 │   ├── config/            # Configuration management
+│   ├── config/            # Configuration management
 │   ├── data/              # Data loading and preprocessing
 │   ├── models/            # PyTorch Lightning model architectures
 │   ├── training/          # Training and evaluation with Lightning
 │   ├── utils/             # Utility functions
+│   ├── utils/             # Utility functions
 │   └── README.md          # Documentazione dettagliata della struttura src/
 ├── data/                   # Dataset
+├── checkpoints/            # Checkpoints del modello durante il training (pytorch)
+├── saved_models/           # Modelli salvati al termine del training
+├── lightning_logs/         # PyTorch Lightning logs (TensorBoard)
 ├── checkpoints/            # Checkpoints del modello durante il training (pytorch)
 ├── saved_models/           # Modelli salvati al termine del training
 ├── lightning_logs/         # PyTorch Lightning logs (TensorBoard)
@@ -135,3 +141,4 @@ Per informazioni dettagliate sulla struttura modulare del codice sorgente, consu
 
 Il report del progetto è disponibile nella cartella `report/` in formato LaTeX.
 Il main file è `template.tex` e contiene tutto lo scheletro del report.
+
