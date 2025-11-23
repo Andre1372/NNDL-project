@@ -2,14 +2,14 @@
 from torch.utils.data import Dataset
 from typing import Optional, Callable
 
-# for file operations
+# For file operations
 import os
 from pathlib import Path
-# for parallel processing
+# For parallel processing
 from tqdm.contrib.concurrent import process_map 
-# for midi processing
+# For midi processing
 import pretty_midi
-# to save sparse matrices
+# To save sparse matrices
 import numpy as np
 import scipy.sparse as sparse
 
@@ -71,41 +71,50 @@ class PianoDataset(Dataset):
             dense_matrix = self.transform(dense_matrix)
 
         return dense_matrix
-    
-def midi_to_matrix(midi_file_path: Path) -> np.ndarray:
-    """
-    Convert a MIDI file to a piano chromagram matrix.
 
-    Args:
-        midi_file_path: Path to the MIDI file
-    
-    Returns:
-        chromagram: 2D numpy array representing the piano chromagram
-    """    
-    output_filename = f"{midi_file_path.stem}_sparse.npz"
-    save_path = REPO_ROOT / 'data' / 'processed_midi_matrices' / output_filename
+class MidiPreprocessor:
+    def __init__(self, fs: int, note_start: int, note_end: int, output_dir: Path, skipping: bool):
+        """
+        Initialize the MIDI preprocessor.
+        Args:
+            fs: Sampling frequency (frames per second)
+            note_start: The starting MIDI note number (inclusive)
+            note_end: The ending MIDI note number (exclusive)
+            output_dir: Directory to save processed files
+            skipping: Whether to skip already processed files
+        """
+        self.fs = fs
+        self.note_start = note_start
+        self.note_end = note_end
+        self.output_dir = output_dir
+        self.skipping = skipping
 
-    if save_path.exists():
-        return None # Saltiamo se già fatto (utile se si interrompe e riprende)
-    
-    try:
-        # extract piano tracks
-        pm = pretty_midi.PrettyMIDI(str(midi_file_path))
-        piano_instruments = [instr for instr in pm.instruments if instr.program in range(8) and not instr.is_drum]
-        if piano_instruments == []:
-            return  None # Skip files with no piano instruments
+    # To let this class be called like a function
+    def __call__(self, midi_file_path: Path):
+        output_filename = f"{midi_file_path.stem}_sparse.npz"
+        save_path = self.output_dir / output_filename
 
-        pm_piano = pretty_midi.PrettyMIDI()
-        for piano_instr in piano_instruments: pm_piano.instruments.append(piano_instr)
+        # Skip if already processed
+        if self.skipping and save_path.exists():
+            return "SKIPPED"
 
-        # store the chromagram of the piano midi
-        chromagram = pm_piano.get_chroma(fs=100)
+        try:
+            # Extract piano tracks
+            pm = pretty_midi.PrettyMIDI(str(midi_file_path))
+            piano_instruments = [instr for instr in pm.instruments if instr.program in range(8) and not instr.is_drum]
+            if piano_instruments == []:
+                return  None # Skip files with no piano instruments
 
-        # Convert to sparse format (CSR or CSC are common)
-        sparse_chromagram = sparse.csr_matrix(chromagram)
-        # Save using scipy
-        sparse.save_npz(save_path, sparse_chromagram)
-        
-        return None
-    except Exception as e:
-        print(f"Error processing {midi_file_path.name}: {e}")
+            pm_piano = pretty_midi.PrettyMIDI()
+            for piano_instr in piano_instruments: pm_piano.instruments.append(piano_instr)
+            
+            # Store the piano roll of the piano midi
+            piano_roll = pm_piano.get_piano_roll(fs=self.fs)[self.note_start:self.note_end, :]
+            
+            # Save an efficient sparse representation
+            sparse_piano_roll = sparse.csr_matrix(piano_roll)
+            sparse.save_npz(save_path, sparse_piano_roll)
+
+            return "PROCESSED"
+        except Exception as e:
+            return f"ERROR: {midi_file_path.name}: {e}"
