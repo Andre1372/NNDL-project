@@ -106,15 +106,12 @@ NNDL-project/
 │   ├── data/                  # Data loading and preprocessing
 │   ├── models/                # PyTorch Lightning model architectures
 │   ├── training/              # Training and evaluation with Lightning
-│   ├── utils/                 # Utility functions
-│   └── README.md              # Documentazione dettagliata della struttura src/
+│   └── utils/                 # Utility functions
 ├── venv_deep/             # Virtual environment
 ├── .gitignore             # File da ignorare nella repository
 ├── README.md              # Questo file
 └── requirements.txt       # Dipendenze Python
 ```
-
-Per informazioni dettagliate sulla struttura modulare del codice sorgente, consultare [src/README.md](src/README.md).
 
 ### 5. Come usare il progetto e fare test iniziali
 
