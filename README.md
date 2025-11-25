@@ -58,8 +58,7 @@ Infine digitare (potrebbe metterci qualche minuto):
 pip install -r requirements.txt
 ```
 
-Ora è necessario installare fluidsynth per riprodurre file audio.
-Una volta aperta una PowerShell da amministratore eseguire:
+Ora è **necessario installare fluidsynth** per riprodurre file audio. Una volta aperta una PowerShell da amministratore eseguire:
 ```bash
 choco install fluidsynth
 ```
@@ -82,63 +81,49 @@ Ora è **necessario installare fluidsynth** per riprodurre file audio.
 
 ### 3. Download del dataset
 
-Per scaricare il dataset da inserire nella cartella /data visitare il link [https://colinraffel.com/projects/lmd/](https://colinraffel.com/projects/lmd/).
+Per scaricare il dataset da inserire nella cartella /data visitare il link [https://colinraffel.com/projects/lmd/](https://colinraffel.com/projects/lmd/) e scaricare il Clean MIDI subset.
 
-In questa pagina copiare il mirror link relativo a Clean MIDI subset e incollarlo in una nuova pagina.
-Poichè la sorgente non è protetta è necessario consentire il download poichè il browser cercherà di bloccarlo.
+Se il download non parte copiare il mirror link e incollarlo in una nuova pagina. Poichè la sorgente non è protetta è necessario consentire il download perchè il browser cercherà di bloccarlo.
 
-In seguito estrarre il dataset ed inserirlo nella cartella data.
-Dovreste ritrovarvi nella situazione _/data/clean_midi/_ che contiene una serie di sottocartelle contenenti i file .mid.
+In seguito estrarre il dataset ed inserirlo nella cartella _/data/clean_midi/_.
 
 
-### 4. Test iniziali
+### 4. Struttura del progetto
 
-È possibile verificare la potenza di calcolo dell'hardware della macchina runnando il file `hardware_test.py` nella cartella src.
-
-Mentre attraverso il file `example_usage.ipynb` si può testare la corretta installazione dei pacchetti.
-Questo file eseguirà il training di una semplice rete neurale feedforward per risolvere il problema di regressione.
-
-
-
-### 5. Monitoraggio del training con TensorBoard
-
-PyTorch Lightning salva automaticamente i log del training. Per visualizzarli eseguire dal terminale il comando:
-PyTorch Lightning salva automaticamente i log del training. Per visualizzarli eseguire dal terminale il comando:
-```bash
-tensorboard --logdir=lightning_logs/
-```
-
-
-## Struttura del progetto
+Verificate che la seguente struttura del progetto sia uguale alla vostra.
 
 ```
 NNDL-project/
-├── src/                    # Codice sorgente del progetto (modular structure)
-│   ├── config/            # Configuration management
-│   ├── config/            # Configuration management
-│   ├── data/              # Data loading and preprocessing
-│   ├── models/            # PyTorch Lightning model architectures
-│   ├── training/          # Training and evaluation with Lightning
-│   ├── utils/             # Utility functions
-│   ├── utils/             # Utility functions
-│   └── README.md          # Documentazione dettagliata della struttura src/
-├── data/                   # Dataset
-├── checkpoints/            # Checkpoints del modello durante il training (pytorch)
-├── saved_models/           # Modelli salvati al termine del training
-├── lightning_logs/         # PyTorch Lightning logs (TensorBoard)
-├── checkpoints/            # Checkpoints del modello durante il training (pytorch)
-├── saved_models/           # Modelli salvati al termine del training
-├── lightning_logs/         # PyTorch Lightning logs (TensorBoard)
-├── notebooks/              # Jupyter notebooks per esperimenti
-├── report/                 # Report LaTeX
-└── requirements.txt        # Dipendenze Python
+├── checkpoints/           # Checkpoints del modello durante il training (pytorch)
+├── data/                  # Dataset
+│   ├── clean_midi/            # Clean MIDI subset contiene sottocartelle di .mid
+│   └── processed_npz/         # Conterrà i .mid preprocessati
+├── lightning_logs/        # PyTorch Lightning logs (TensorBoard)
+├── notebooks/             # Jupyter notebooks per esperimenti
+├── report/                # Report LaTeX
+├── saved_models/          # Modelli salvati al termine del training
+├── src/                   # Codice sorgente del progetto (modular structure)
+│   ├── data/                  # Data loading and preprocessing
+│   ├── models/                # PyTorch Lightning model architectures
+│   ├── training/              # Training and evaluation with Lightning
+│   ├── utils/                 # Utility functions
+│   └── README.md              # Documentazione dettagliata della struttura src/
+├── venv_deep/             # Virtual environment
+├── .gitignore             # File da ignorare nella repository
+├── README.md              # Questo file
+└── requirements.txt       # Dipendenze Python
 ```
 
 Per informazioni dettagliate sulla struttura modulare del codice sorgente, consultare [src/README.md](src/README.md).
 
+### 5. Come usare il progetto e fare test iniziali
 
-## Report
+Il progetto è strutturato in modo che tutte le classi e funzioni vengano definite all'interno di _\src_. Tutti i test e il main code viene scritto all'interno di _\notebooks_. Quindi i notebook sono i main file mentre tutto lo scheletro del progetto è nella cartella _\src_.
 
-Il report del progetto è disponibile nella cartella `report/` in formato LaTeX.
-Il main file è `template.tex` e contiene tutto lo scheletro del report.
+Sono già presenti 4 notebooks che sono utili per capire cosa è stato fatto fin ora. Potreste eseguirli e visualizzarli nel seguente ordine:
+
+1. `hardware_test.ipynb` per testare la corretta installazione di pytorch e la potenza di calcolo del computer.
+2. `Tutorial_pretty_midi_library.ipynb` fatto da Colin Raffel ed è utile per capire cosa può fare la sua libreria. Dateci uno sguardo veloce, non è troppo importante.
+3. `example_audio.ipynb` per vedere come creare il dataset di MIDI files.
+4. `example_usage.ipynb` per un esempio della struttura complessiva di training, saving e visualization di un modello Pytorch Lightning.
 

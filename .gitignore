@@ -5,7 +5,13 @@ __pycache__/
 checkpoints/*
 lightning_logs/*
 saved_models/*
-data/*
+data/clean_midi/*
+data/processed_npz/*
+
+# Keep empty folders
+!.gitkeep
+!data/clean_midi/.gitkeep
+!data/processed_npz/.gitkeep
 
 # VSCode settings
 .vscode/
