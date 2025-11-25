@@ -1,7 +1,10 @@
 
+
+# For plotting
 import matplotlib.pyplot as plt
 import librosa.display
 import numpy as np
+# For MIDI handling
 import pretty_midi
 
 def display_chromagram(chromagram, title="Chromagram", fs=100):

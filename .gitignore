@@ -1,12 +1,11 @@
 
 # Environment
 venv_deep/
-checkpoints/
 __pycache__/
-lightning_logs/
-saved_models/
-clean_midi/
-processed_midi_matrices/
+checkpoints/*
+lightning_logs/*
+saved_models/*
+data/*
 
 # VSCode settings
 .vscode/

@@ -1,19 +1,15 @@
 
+# Base Dataset class from PyTorch
 from torch.utils.data import Dataset
+# For transformations on data
 from typing import Optional, Callable
-
 # For file operations
-import os
 from pathlib import Path
-# For parallel processing
-from tqdm.contrib.concurrent import process_map 
 # For midi processing
 import pretty_midi
 # To save sparse matrices
 import numpy as np
 import scipy.sparse as sparse
-
-REPO_ROOT = Path(__file__).parents[2].resolve()
 
 class PolyDataset(Dataset):
 
@@ -44,7 +40,7 @@ class PolyDataset(Dataset):
     
 class PianoDataset(Dataset):
 
-    def __init__(self, file_paths,transform: Optional[Callable] = None):
+    def __init__(self, file_paths, transform: Optional[Callable] = None):
         """
         Initialize the dataset.
         

@@ -1,15 +1,18 @@
 
-from torch.utils.data import DataLoader
+# Standard library
 from typing import Optional
-import warnings
-import os
-import re
-import shutil
-import json
+
+# For training operations
+from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
-
+# Fror quieting warnings
+import warnings
+# For file operations
+from pathlib import Path
+import shutil
+import json
 
 class LightningTrainer:
     """
@@ -40,25 +43,28 @@ class LightningTrainer:
 
         self.max_epochs = max_epochs
         self.accelerator = accelerator
+
         self.checkpoint_callback = enable_checkpointing     # contains false or the callback
-        self.logger = enable_logging                        # contains false or the logger
-        self.experiment_name = experiment_name
+
         self.enable_early_stopping = enable_early_stopping
         self.early_stopping_patience = early_stopping_patience
         self.early_stopping_monitor = early_stopping_monitor
         self.early_stopping_mode = early_stopping_mode
 
+        self.logger = enable_logging                        # contains false or the logger
+        self.experiment_name = experiment_name
+
         # Setup callbacks
         callbacks = []
         
         # Resolve project root (two levels above this file: src/training -> repo root)
-        self.repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-        self.checkpoints_dir = os.path.join(self.repo_root, 'checkpoints')
-        self.logs_dir = os.path.join(self.repo_root, 'lightning_logs')
-        self.saved_models_dir = os.path.join(self.repo_root, 'saved_models')
+        self.REPO_ROOT = Path(__file__).parents[2].resolve()
+        self.checkpoints_dir = self.REPO_ROOT / 'checkpoints'
+        self.logs_dir = self.REPO_ROOT / 'lightning_logs'
+        self.saved_models_dir = self.REPO_ROOT / 'saved_models'
 
         if enable_checkpointing:
-            os.makedirs(self.checkpoints_dir, exist_ok=True)
+            self.checkpoints_dir.mkdir(parents=True, exist_ok=True)
             checkpoint_callback = ModelCheckpoint(
                 dirpath=self.checkpoints_dir,
                 filename='best-{epoch:02d}-{val_loss:.2f}',
@@ -92,24 +98,23 @@ class LightningTrainer:
         # Prepare optional logger which allows controlling where lightning
         # writes `lightning_logs/<experiment_name>/version_*`.
         if enable_logging:
-            exp_path = os.path.join(self.logs_dir, experiment_name)
-            if overwrite_last:
-                if os.path.isdir(exp_path):
-                    # Find existing version_* subdirectories and pick the highest-numbered one.
-                    candidates = []
-                    for name in os.listdir(exp_path):
-                        m = re.match(r"version_(\d+)$", name)
-                        if m:
-                            candidates.append((int(m.group(1)), name))
-                    if candidates:
-                        candidates.sort()
-                        _, last_name = candidates[-1]
-                        to_remove = os.path.join(exp_path, last_name)
-                        if os.path.isdir(to_remove):
-                            shutil.rmtree(to_remove)
+            exp_path = self.logs_dir / self.experiment_name
+            
+            if overwrite_last and exp_path.exists() and exp_path.is_dir():
+                # Find all directories starting with "version_"
+                versions = []
+                for p in exp_path.glob("version_*"):
+                    if p.is_dir() and p.name.split("_")[-1].isdigit():
+                        versions.append(p)
+                
+                if versions:
+                    # Find the one with the highest version number using lambda function
+                    last_version_path = max(versions, key=lambda p: int(p.name.split("_")[-1]))
+                    # Remove the directory
+                    shutil.rmtree(last_version_path)
 
-            # Use absolute logs_dir so Lightning writes logs under the repository root
-            self.logger = TensorBoardLogger(save_dir=self.logs_dir, name=experiment_name)
+            # Initialize the logger
+            self.logger = TensorBoardLogger(save_dir=self.logs_dir, name=self.experiment_name)
 
         # Initialize the Trainer
         self.trainer = pl.Trainer(
@@ -129,10 +134,9 @@ class LightningTrainer:
         # After training, export last checkpoint and configs to saved_models
         try:
             self.save_model(model)
-        except Exception:
+        except Exception as e:
             # Do not fail training if export fails; print a warning instead
-            import traceback
-            traceback.print_exc()
+            print(f"WARNING: Could not save model after training: {e}")
 
     def test(self, model: pl.LightningModule, test_loader: DataLoader):
         """ Test the model. """
@@ -143,48 +147,47 @@ class LightningTrainer:
         self.trainer.validate(model, val_loader)
 
     def save_model(self, model: pl.LightningModule):
-        """Create a saved_models/<experiment>/version_<N>/ with the last checkpoint and a config JSON.
-
-        This uses the Trainer's logger to discover the current `version` and the
-        stored checkpoint callback to find the last/best checkpoint path.
         """
-        if self.logger is False or self.checkpoint_callback is False:
+        Create a saved_models/<experiment>/version_<N>/ with the last checkpoint and a config JSON.
+        """
+        if not self.logger or not self.checkpoint_callback:
             # no logger configured or no checkpoint saved; nothing to do
             return
 
-        log_dir = self.logger.log_dir
+        # Determine current version
+        version = getattr(self.logger, 'version', 0)
+        
+        # Prepare saved model directory
+        saved_dir = Path(self.saved_models_dir) / self.experiment_name / f"version_{version}"
+        if saved_dir.exists(): shutil.rmtree(saved_dir)
+        saved_dir.mkdir(parents=True, exist_ok=True)
 
-        m = re.search(r"version_(\d+)", log_dir)
-        version = m.group(1) if m else '0'
+        # Copy last Checkpoint
+        ckpt_src = Path(self.checkpoint_callback.last_model_path)
+        
+        if ckpt_src.is_file():
+            # Copy to destination keeping the original filename
+            shutil.copy2(ckpt_src, saved_dir / ckpt_src.name)
 
-        # create saved_models/<experiment>/version_<N>/ directory under repo root
-        saved_dir = os.path.join(self.saved_models_dir, self.experiment_name, f"version_{version}")
-        os.makedirs(saved_dir, exist_ok=True)
-
-        # determine checkpoint path
-        ckpt_src = self.checkpoint_callback.last_model_path
-
-        # copy checkpoint into saved_dir
-        if os.path.isfile(ckpt_src):
-            shutil.copy2(ckpt_src, os.path.join(saved_dir, os.path.basename(ckpt_src)))
-
-        # collect config: prefer model.hparams if present
-        cfg = {}
-        cfg['model_hparams'] = dict(model.hparams)
-
-        # add training/trainer metadata
-        cfg['training'] = {
-            'max_epochs': self.max_epochs,
-            'accelerator': self.accelerator,
-            'log_dir': log_dir
+        # Build Configuration
+        config = {
+            'model_hparams': dict(model.hparams),
+            'training': {
+                'max_epochs': self.max_epochs,
+                'accelerator': self.accelerator,
+                'log_dir': str(self.logger.log_dir) 
+            }
         }
-        if self.enable_early_stopping:
-            cfg['training']['enable_early_stopping'] = self.enable_early_stopping
-            cfg['training']['early_stopping_patience'] = self.early_stopping_patience
-            cfg['training']['early_stopping_monitor'] = self.early_stopping_monitor
-            cfg['training']['early_stopping_mode'] = self.early_stopping_mode
 
-        # write config.json
-        cfg_path = os.path.join(saved_dir, 'config.json')
-        with open(cfg_path, 'w', encoding='utf-8') as fh:
-            json.dump(cfg, fh, ensure_ascii=False, indent=4)
+        # Clean conditional addition
+        if self.enable_early_stopping:
+            config['training'].update({
+                'enable_early_stopping': self.enable_early_stopping,
+                'early_stopping_patience': self.early_stopping_patience,
+                'early_stopping_monitor': self.early_stopping_monitor,
+                'early_stopping_mode': self.early_stopping_mode
+            })
+
+        # Write JSON
+        with (saved_dir / 'config.json').open('w', encoding='utf-8') as fh:
+            json.dump(config, fh, ensure_ascii=False, indent=4)
