@@ -86,6 +86,11 @@ class MidiPreprocessor:
     # To let this class be called like a function
     def __call__(self, midi_file_path: Path):
 
+        # Create unique ID combining Artist and Title since more artists can have same song titles
+        artist = midi_file_path.parent.name.replace(" ", "_")
+        song_name = midi_file_path.stem.replace(" ", "_")
+        unique_id = f"{artist}__{song_name}"
+
         try:
             result = []
 
@@ -95,7 +100,7 @@ class MidiPreprocessor:
             # Extract only selected instruments
             piano_instruments = [instr for instr in pm.instruments if instr.program in self.select_instruments and not instr.is_drum]
             if piano_instruments == []:
-                return f"DISCARDED: {midi_file_path.name}: NO PIANO" # Skip files with no piano instruments
+                return f"DISCARDED: {unique_id}: NO PIANO" # Skip files with no piano instruments
             
             # Extract tempo changes
             tempo_change_times, tempi = pm.get_tempo_changes()
@@ -120,7 +125,13 @@ class MidiPreprocessor:
                 if len(times) < SAMPLES_PER_8_BARS:
                     continue
 
+                programs_in_segment = []
+
                 for instr in piano_instruments:
+                    if instr.program in programs_in_segment:
+                        continue  # Skip duplicate instruments
+                    programs_in_segment.append(instr.program)
+
                     # Compute the piano roll only for the specified times (128, len(times))
                     piano_roll = instr.get_piano_roll(fs=fs, times=times) 
                     
@@ -147,17 +158,17 @@ class MidiPreprocessor:
                             continue
                             
                         # Save an efficient sparse representation
-                        output_filename = f"{midi_file_path.stem}_instr{instr.program}_ts{times[start_col]:.2f}_te{times[end_col-1]:.2f}_fs{fs:.2f}.npz"
+                        output_filename = f"{unique_id}_instr{instr.program}_ts{times[start_col]:.2f}_te{times[end_col-1]:.2f}_fs{fs:.2f}.npz"
                         save_path = self.output_dir / output_filename
                         sparse_window = sparse.csr_matrix(window)
                         sparse.save_npz(save_path, sparse_window)
                         result.append({"filename": output_filename, "instrument": instr.program, "fs": fs, "bpm": bpm})
 
             if len(result) == 0:
-                return f"DISCARDED: {midi_file_path.name}: NO VALID SEGMENTS"
+                return f"DISCARDED: {unique_id}: NO VALID SEGMENTS"
             
             return result
         
         except Exception as e:
-            return f"ERROR: {midi_file_path.name}: {e}"
+            return f"ERROR: {unique_id}: {e}"
         

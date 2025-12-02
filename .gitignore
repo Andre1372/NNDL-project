@@ -7,11 +7,13 @@ lightning_logs/*
 saved_models/*
 data/clean_midi/*
 data/processed_npz/*
+data/prove/*
 
 # Keep empty folders
 !.gitkeep
 !data/clean_midi/.gitkeep
 !data/processed_npz/.gitkeep
+!data/prove/.gitkeep
 
 # VSCode settings
 .vscode/

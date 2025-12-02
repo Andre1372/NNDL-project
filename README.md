@@ -97,7 +97,8 @@ NNDL-project/
 ├── checkpoints/           # Checkpoints del modello durante il training (pytorch)
 ├── data/                  # Dataset
 │   ├── clean_midi/            # Clean MIDI subset contiene sottocartelle di .mid
-│   └── processed_npz/         # Conterrà i .mid preprocessati
+|   ├── processed_npz/         # Conterrà i .mid preprocessati
+│   └── prove/                 # Contiene un sottoinsieme di circa 300 .mid
 ├── lightning_logs/        # PyTorch Lightning logs (TensorBoard)
 ├── notebooks/             # Jupyter notebooks per esperimenti
 ├── report/                # Report LaTeX
