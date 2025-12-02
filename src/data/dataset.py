@@ -11,6 +11,8 @@ import pretty_midi
 import numpy as np
 import scipy.sparse as sparse
 
+import torch
+
 class PolyDataset(Dataset):
 
     def __init__(self, inputs: np.ndarray, targets: np.ndarray, transform: Optional[Callable] = None):
@@ -51,22 +53,51 @@ class PianoDataset(Dataset):
         self.file_paths = file_paths
         self.transform = transform
 
+        self.bars_per_segment = 8
+        self.steps_per_bar = 16
+        self.pitch_dim = 128
+
     def __len__(self) -> int:
-        """ Return the number of samples in the dataset. """
-        return len(self.file_paths)
+        """ Returns the total number of (prev, curr) pairs available. """
+        return len(self.file_paths) * self.bars_per_segment
 
     def __getitem__(self, idx: int):
         """ Get a sample by index. """
-        path = self.file_paths[idx]
-        
-        sparse_matrix = sparse.load_npz(path)
-        
-        dense_matrix = sparse_matrix.todense()
 
+        # 1. Identifica quale file e quale battuta (0-7) stiamo cercando
+        file_idx = idx // self.bars_per_segment
+        bar_idx = idx % self.bars_per_segment
+                
+        # Nota: caricarla ogni volta può essere lento (Disk I/O). 
+        # Per iniziare va bene, per ottimizzare in futuro caricheremo tutto in RAM.
+        sparse_matrix = sparse.load_npz(self.file_paths[file_idx])
+        dense_matrix = sparse_matrix.todense() # Shape: (128, 128)
+        
+        # 2. Estrai la Current Bar (Target)
+        # Affettiamo sull'asse del tempo (asse 0)
+        start_t = bar_idx * self.steps_per_bar
+        end_t = start_t + self.steps_per_bar
+        
+        # current_bar shape: (128, 16)
+        current_bar = dense_matrix[:, start_t:end_t]
+
+        # 3. Estrai la Previous Bar (Condition)
+        if bar_idx == 0:
+            # Se è la prima battuta del segmento, la precedente è "vuota" (padding)
+            prev_bar = np.zeros((self.pitch_dim, self.steps_per_bar), dtype=np.float32)
+        else:
+            # Altrimenti prendiamo i 16 step precedenti
+            prev_start = (bar_idx - 1) * self.steps_per_bar
+            prev_end = prev_start + self.steps_per_bar
+            prev_bar = dense_matrix[:, prev_start:prev_end]
+
+        # 4. Trasformazioni (es. ToTensor)
         if self.transform:
-            dense_matrix = self.transform(dense_matrix)
+            current_bar = self.transform(current_bar)
+            prev_bar = self.transform(prev_bar)
 
-        return dense_matrix
+        # MidiNet richiede anche una dimensione canale: (1, 16, 128)
+        return prev_bar, current_bar
 
 class MidiPreprocessor:
     def __init__(self, select_instruments: list, note_start: int, note_end: int, output_dir: Path):
