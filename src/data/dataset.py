@@ -7,11 +7,14 @@ from typing import Optional, Callable
 from pathlib import Path
 # For midi processing
 import pretty_midi
-# To save sparse matrices
+# To work with matrices
 import numpy as np
 import scipy.sparse as sparse
-
 import torch
+# For progress bars
+from tqdm import tqdm
+# For garbage collection
+import gc
 
 class PolyDataset(Dataset):
 
@@ -39,7 +42,7 @@ class PolyDataset(Dataset):
             sample = self.transform(sample)
 
         return sample
-    
+
 class PianoDataset(Dataset):
 
     def __init__(self, file_paths, transform: Optional[Callable] = None):
@@ -98,6 +101,82 @@ class PianoDataset(Dataset):
 
         # MidiNet richiede anche una dimensione canale: (1, 16, 128)
         return prev_bar, current_bar
+    
+class PianoMmapDataset(Dataset):
+    def __init__(self, mmap_path: str, split_indices: np.ndarray, transform=None):
+        """
+        Initialize the dataset.
+        Args:
+            mmap_path: Path al file unico .dat
+            split_indices: Array di indici (interi) che corrispondono ai segmenti 
+                           assegnati a questo split (es. solo i segmenti di training).
+            transform: Trasformazioni opzionali (es. ToTensor)
+        """
+        self.mmap_path = mmap_path
+        self.split_indices = split_indices  # Questa è la "maschera" di accesso
+        self.transform = transform
+        
+        # Costanti
+        self.bars_per_segment = 8
+        self.steps_per_bar = 16
+        self.pitch_dim = 128
+        
+        # Apriamo il file in modalità lettura.
+        # Importante: shape[0] non è len(split_indices), ma la dimensione TOTALE del file su disco.
+        # Dobbiamo sapere quanti segmenti totali ci sono nel file .dat (es. 500000).
+        # Per semplicità qui assumo che tu lo sappia o lo calcoli dalla dimensione file.
+        # Esempio: total_segments = os.path.getsize(path) / (128*128)
+        
+        # TIP: Passare total_num_segments come argomento o calcolarlo è necessario per il memmap
+        # Qui lo calcolo dinamicamente per robustezza:
+        import os
+        file_size = os.path.getsize(mmap_path)
+        self.total_segments_on_disk = file_size // (128 * 128) # 1 byte per elemento (uint8)
+        
+        self.data = np.memmap(mmap_path, dtype='uint8', mode='r', 
+                              shape=(self.total_segments_on_disk, 128, 128))
+
+    def __len__(self) -> int:
+        # Il dataset è grande quanto il numero di segmenti nello split * 8 battute
+        return len(self.split_indices) * self.bars_per_segment
+
+    def __getitem__(self, idx: int):
+        # 1. Mappatura Logica -> Fisica
+        # L'idx del dataloader va da 0 a len(self).
+        # Dobbiamo capire a quale indice della lista `split_indices` corrisponde.
+        list_idx = idx // self.bars_per_segment  # Indice nella lista split_indices
+        bar_idx = idx % self.bars_per_segment    # Quale battuta (0-7)
+        
+        # Ora recuperiamo il VERO indice sul disco
+        physical_segment_idx = self.split_indices[list_idx]
+        
+        # 2. Accesso ai dati (Memory Mapped)
+        # Leggiamo solo la riga specificata da physical_segment_idx
+        full_segment = np.array(self.data[physical_segment_idx], dtype=np.float32)
+        
+        # 3. Slicing (Battuta Corrente e Precedente)
+        start_t = bar_idx * self.steps_per_bar
+        end_t = start_t + self.steps_per_bar
+        
+        current_bar = full_segment[:, start_t:end_t]
+
+        if bar_idx == 0:
+            # Padding vuoto per la prima battuta
+            prev_bar = np.zeros((self.pitch_dim, self.steps_per_bar), dtype=np.float32)
+        else:
+            prev_start = (bar_idx - 1) * self.steps_per_bar
+            prev_end = prev_start + self.steps_per_bar
+            prev_bar = full_segment[:, prev_start:prev_end]
+
+        # 4. ToTensor
+        curr_tensor = torch.from_numpy(current_bar).unsqueeze(0)
+        prev_tensor = torch.from_numpy(prev_bar).unsqueeze(0)
+        
+        if self.transform:
+            curr_tensor = self.transform(curr_tensor)
+            prev_tensor = self.transform(prev_tensor)
+
+        return prev_tensor, curr_tensor
 
 class MidiPreprocessor:
     def __init__(self, select_instruments: list, note_start: int, note_end: int, output_dir: Path):
@@ -203,3 +282,46 @@ class MidiPreprocessor:
         except Exception as e:
             return f"ERROR: {unique_id}: {e}"
         
+def create_mmap_dataset(source_dir: Path, output_file: Path):
+    """ 
+    Consolidate all the files .npz in one memmap file.
+    Args:
+        source_dir (Path): Directory containing the .npz files.
+        output_file (Path): Path to the output memmap file.
+    """
+    source_dir = Path(source_dir)
+    output_file = Path(output_file)
+    
+    # If the file exists, try to remove it
+    if output_file.exists():
+        try:
+            output_file.unlink()
+        except OSError as e:
+            raise RuntimeWarning(f"Unable to remove existing file. It might be in use. Error: {e}")
+
+    files = sorted(list(source_dir.glob("*.npz")))
+    num_files = len(files)
+    
+    if num_files == 0:
+        raise ValueError("No .npz files found.")
+    
+    # Create the memmap file
+    fp = np.memmap(output_file, dtype='uint8', mode='w+', shape=(num_files, 128, 128))
+
+    try:
+        for i, file_path in enumerate(tqdm(files, ncols=150, desc="Consolidating .npz files")):
+            try:
+                sparse_matrix = sparse.load_npz(file_path)
+                dense_matrix = sparse_matrix.todense()
+                fp[i] = dense_matrix.astype('uint8')
+            except Exception as e:
+                print(f"Error in file {file_path}: {e}")
+                fp[i] = np.zeros((128, 128), dtype='uint8')
+        
+        # Flush data to disk
+        fp.flush()
+        
+    finally:
+        # Delete the Python object and force garbage collector to release the file handle
+        del fp
+        gc.collect()
