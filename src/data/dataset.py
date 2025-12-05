@@ -7,11 +7,14 @@ from typing import Optional, Callable
 from pathlib import Path
 # For midi processing
 import pretty_midi
-# To save sparse matrices
+# To work with matrices
 import numpy as np
 import scipy.sparse as sparse
-
 import torch
+# For progress bars
+from tqdm import tqdm
+# For garbage collection
+import gc
 
 class PolyDataset(Dataset):
 
@@ -40,64 +43,65 @@ class PolyDataset(Dataset):
 
         return sample
     
-class PianoDataset(Dataset):
-
-    def __init__(self, file_paths, transform: Optional[Callable] = None):
+class PianoMmapDataset(Dataset):
+    def __init__(self, mmap_path: str, split_indices: np.ndarray, shape: tuple, transform=None):
         """
         Initialize the dataset.
-        
         Args:
-            file_paths: List of file paths to .npz files
-            transform: Optional transform to apply to inputs
+            mmap_path: Path to file .dat
+            split_indices: Array of indices (integers) corresponding to the segments 
+                           assigned to this split (e.g., only training segments).
+            shape: Tuple representing the shape of the entire dataset on disk (e.g.; num_segments, 128, 128)
+            transform: Optional transformations (e.g., ToTensor)
         """
-        self.file_paths = file_paths
+        self.mmap_path = mmap_path
+        self.split_indices = split_indices  # This is the "access mask"
+        self.shape = shape
         self.transform = transform
-
+        self.data = np.memmap(mmap_path, dtype='uint8', mode='r', shape=self.shape)
+        
+        # Constants
         self.bars_per_segment = 8
         self.steps_per_bar = 16
         self.pitch_dim = 128
 
     def __len__(self) -> int:
-        """ Returns the total number of (prev, curr) pairs available. """
-        return len(self.file_paths) * self.bars_per_segment
+        """ Return the number of bars in the dataset. """
+        return len(self.split_indices) * self.bars_per_segment
 
     def __getitem__(self, idx: int):
         """ Get a sample by index. """
-
-        # 1. Identifica quale file e quale battuta (0-7) stiamo cercando
-        file_idx = idx // self.bars_per_segment
-        bar_idx = idx % self.bars_per_segment
-                
-        # Nota: caricarla ogni volta può essere lento (Disk I/O). 
-        # Per iniziare va bene, per ottimizzare in futuro caricheremo tutto in RAM.
-        sparse_matrix = sparse.load_npz(self.file_paths[file_idx])
-        dense_matrix = sparse_matrix.todense() # Shape: (128, 128)
+        # The dataloader idx goes from 0 to len(self).
+        list_idx = idx // self.bars_per_segment  # Index in the split_indices list
+        bar_idx = idx % self.bars_per_segment    # Which bar (0-7)
         
-        # 2. Estrai la Current Bar (Target)
-        # Affettiamo sull'asse del tempo (asse 0)
+        # Now retrieve the TRUE index on disk
+        physical_segment_idx = self.split_indices[list_idx]
+        
+        # Data Access (Memory Mapped)
+        full_segment = np.array(self.data[physical_segment_idx], dtype=np.float32)
+        
+        # Slicing Current Bar
         start_t = bar_idx * self.steps_per_bar
-        end_t = start_t + self.steps_per_bar
-        
-        # current_bar shape: (128, 16)
-        current_bar = dense_matrix[:, start_t:end_t]
+        current_bar = full_segment[:, start_t : start_t+self.steps_per_bar]
 
-        # 3. Estrai la Previous Bar (Condition)
         if bar_idx == 0:
-            # Se è la prima battuta del segmento, la precedente è "vuota" (padding)
+            # Empty padding for the first bar
             prev_bar = np.zeros((self.pitch_dim, self.steps_per_bar), dtype=np.float32)
         else:
-            # Altrimenti prendiamo i 16 step precedenti
+            # Slicing Previous Bar
             prev_start = (bar_idx - 1) * self.steps_per_bar
-            prev_end = prev_start + self.steps_per_bar
-            prev_bar = dense_matrix[:, prev_start:prev_end]
+            prev_bar = full_segment[:, prev_start : prev_start+self.steps_per_bar]
 
-        # 4. Trasformazioni (es. ToTensor)
+        # ToTensor
+        curr_tensor = torch.from_numpy(current_bar).unsqueeze(0)
+        prev_tensor = torch.from_numpy(prev_bar).unsqueeze(0)
+        
         if self.transform:
-            current_bar = self.transform(current_bar)
-            prev_bar = self.transform(prev_bar)
+            curr_tensor = self.transform(curr_tensor)
+            prev_tensor = self.transform(prev_tensor)
 
-        # MidiNet richiede anche una dimensione canale: (1, 16, 128)
-        return prev_bar, current_bar
+        return prev_tensor, curr_tensor
 
 class MidiPreprocessor:
     def __init__(self, select_instruments: list, note_start: int, note_end: int, output_dir: Path):
@@ -203,3 +207,46 @@ class MidiPreprocessor:
         except Exception as e:
             return f"ERROR: {unique_id}: {e}"
         
+def create_mmap_dataset(source_dir: Path, output_file: Path):
+    """ 
+    Consolidate all the files .npz in one memmap file.
+    Args:
+        source_dir (Path): Directory containing the .npz files.
+        output_file (Path): Path to the output memmap file.
+    """
+    source_dir = Path(source_dir)
+    output_file = Path(output_file)
+    
+    # If the file exists, try to remove it
+    if output_file.exists():
+        try:
+            output_file.unlink()
+        except OSError as e:
+            raise RuntimeWarning(f"Unable to remove existing file. It might be in use. Error: {e}")
+
+    files = sorted(list(source_dir.glob("*.npz")))
+    num_files = len(files)
+    
+    if num_files == 0:
+        raise ValueError("No .npz files found.")
+    
+    # Create the memmap file
+    fp = np.memmap(output_file, dtype='uint8', mode='w+', shape=(num_files, 128, 128))
+
+    try:
+        for i, file_path in enumerate(tqdm(files, ncols=150, desc="Consolidating .npz files")):
+            try:
+                sparse_matrix = sparse.load_npz(file_path)
+                dense_matrix = sparse_matrix.todense()
+                fp[i] = dense_matrix.astype('uint8')
+            except Exception as e:
+                print(f"Error in file {file_path}: {e}")
+                fp[i] = np.zeros((128, 128), dtype='uint8')
+        
+        # Flush data to disk
+        fp.flush()
+        
+    finally:
+        # Delete the Python object and force garbage collector to release the file handle
+        del fp
+        gc.collect()
