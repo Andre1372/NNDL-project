@@ -17,74 +17,24 @@ class BaseModel(pl.LightningModule):
         self.learning_rate = learning_rate
         self.criterion = criterion
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self) -> torch.Tensor:
         """ Forward pass through the model."""
         raise NotImplementedError("Subclasses must implement forward()")
     
-    def training_step(self, batch: tuple, batch_idx: int) -> torch.Tensor:
-        """
-        Training step for PyTorch Lightning.
-        
-        Args:
-            batch: Tuple of (inputs, targets)
-            batch_idx: Index of the batch
-            
-        Returns:
-            Loss tensor
-        """
-        inputs, targets = batch
-        outputs = self(inputs)
-        loss = self.criterion(outputs, targets)
-
-        # Log metrics
-        self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
-        
-        return loss
+    def training_step(self) -> torch.Tensor:
+        """ Training step for PyTorch Lightning. """
+        raise NotImplementedError("Subclasses must implement training_step()")
     
-    def validation_step(self, batch: tuple, batch_idx: int) -> torch.Tensor:
-        """
-        Validation step for PyTorch Lightning.
+    def validation_step(self) -> torch.Tensor:
+        """ Validation step for PyTorch Lightning. """
+        raise NotImplementedError("Subclasses must implement validation_step()")
         
-        Args:
-            batch: Tuple of (inputs, targets)
-            batch_idx: Index of the batch
-            
-        Returns:
-            Loss tensor
-        """
-        inputs, targets = batch
-        outputs = self(inputs)
-        loss = self.criterion(outputs, targets)
-
-        # Log metrics
-        self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
-        
-        return loss
-    
-    def test_step(self, batch: tuple, batch_idx: int) -> torch.Tensor:
-        """
-        Test step for PyTorch Lightning.
-        
-        Args:
-            batch: Tuple of (inputs, targets)
-            batch_idx: Index of the batch
-            
-        Returns:
-            Loss tensor
-        """
-        inputs, targets = batch
-        outputs = self(inputs)
-        loss = self.criterion(outputs, targets)
-        
-        return loss
+    def test_step(self) -> torch.Tensor:
+        """ Test step for PyTorch Lightning. """
+        raise NotImplementedError("Subclasses must implement test_step()")
     
     def configure_optimizers(self) -> torch.optim.Optimizer:
-        """
-        Configure optimizer for PyTorch Lightning.
-        
-        Returns:
-            Optimizer instance
-        """
+        """ Configure optimizer for PyTorch Lightning. """
         raise NotImplementedError("Subclasses must implement configure_optimizers()")
     
     def get_num_parameters(self) -> int:
@@ -117,7 +67,7 @@ class SimpleMLP(BaseModel):
         learning_rate: float = 1e-3
     ):
 
-        super(SimpleMLP, self).__init__(learning_rate=learning_rate, criterion=criterion)
+        super(SimpleMLP, self).__init__(criterion, learning_rate)
         
         layers = []
         prev_dim = input_dim
@@ -147,6 +97,54 @@ class SimpleMLP(BaseModel):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
 
         return self.network(x)
+    
+    def training_step(self, batch: tuple) -> torch.Tensor:
+        """
+        Training step for PyTorch Lightning.
+        Args:
+            batch: Tuple of (inputs, targets)
+        Returns:
+            Loss tensor
+        """
+        inputs, targets = batch
+        outputs = self(inputs)
+        loss = self.criterion(outputs, targets)
+
+        # Log metrics
+        self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
+        
+        return loss
+    
+    def validation_step(self, batch: tuple) -> torch.Tensor:
+        """
+        Validation step for PyTorch Lightning.
+        Args:
+            batch: Tuple of (inputs, targets)
+        Returns:
+            Loss tensor
+        """
+        inputs, targets = batch
+        outputs = self(inputs)
+        loss = self.criterion(outputs, targets)
+
+        # Log metrics
+        self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
+        
+        return loss
+    
+    def test_step(self, batch: tuple) -> torch.Tensor:
+        """
+        Test step for PyTorch Lightning.
+        Args:
+            batch: Tuple of (inputs, targets)
+        Returns:
+            Loss tensor
+        """
+        inputs, targets = batch
+        outputs = self(inputs)
+        loss = self.criterion(outputs, targets)
+        
+        return loss
     
     def configure_optimizers(self) -> torch.optim.Optimizer:
 
