@@ -42,133 +42,58 @@ class PolyDataset(Dataset):
             sample = self.transform(sample)
 
         return sample
-
-class PianoDataset(Dataset):
-
-    def __init__(self, file_paths, transform: Optional[Callable] = None):
-        """
-        Initialize the dataset.
-        
-        Args:
-            file_paths: List of file paths to .npz files
-            transform: Optional transform to apply to inputs
-        """
-        self.file_paths = file_paths
-        self.transform = transform
-
-        self.bars_per_segment = 8
-        self.steps_per_bar = 16
-        self.pitch_dim = 128
-
-    def __len__(self) -> int:
-        """ Returns the total number of (prev, curr) pairs available. """
-        return len(self.file_paths) * self.bars_per_segment
-
-    def __getitem__(self, idx: int):
-        """ Get a sample by index. """
-
-        # 1. Identifica quale file e quale battuta (0-7) stiamo cercando
-        file_idx = idx // self.bars_per_segment
-        bar_idx = idx % self.bars_per_segment
-                
-        # Nota: caricarla ogni volta può essere lento (Disk I/O). 
-        # Per iniziare va bene, per ottimizzare in futuro caricheremo tutto in RAM.
-        sparse_matrix = sparse.load_npz(self.file_paths[file_idx])
-        dense_matrix = sparse_matrix.todense() # Shape: (128, 128)
-        
-        # 2. Estrai la Current Bar (Target)
-        # Affettiamo sull'asse del tempo (asse 0)
-        start_t = bar_idx * self.steps_per_bar
-        end_t = start_t + self.steps_per_bar
-        
-        # current_bar shape: (128, 16)
-        current_bar = dense_matrix[:, start_t:end_t]
-
-        # 3. Estrai la Previous Bar (Condition)
-        if bar_idx == 0:
-            # Se è la prima battuta del segmento, la precedente è "vuota" (padding)
-            prev_bar = np.zeros((self.pitch_dim, self.steps_per_bar), dtype=np.float32)
-        else:
-            # Altrimenti prendiamo i 16 step precedenti
-            prev_start = (bar_idx - 1) * self.steps_per_bar
-            prev_end = prev_start + self.steps_per_bar
-            prev_bar = dense_matrix[:, prev_start:prev_end]
-
-        # 4. Trasformazioni (es. ToTensor)
-        if self.transform:
-            current_bar = self.transform(current_bar)
-            prev_bar = self.transform(prev_bar)
-
-        # MidiNet richiede anche una dimensione canale: (1, 16, 128)
-        return prev_bar, current_bar
     
 class PianoMmapDataset(Dataset):
-    def __init__(self, mmap_path: str, split_indices: np.ndarray, transform=None):
+    def __init__(self, mmap_path: str, split_indices: np.ndarray, shape: tuple, transform=None):
         """
         Initialize the dataset.
         Args:
-            mmap_path: Path al file unico .dat
-            split_indices: Array di indici (interi) che corrispondono ai segmenti 
-                           assegnati a questo split (es. solo i segmenti di training).
-            transform: Trasformazioni opzionali (es. ToTensor)
+            mmap_path: Path to file .dat
+            split_indices: Array of indices (integers) corresponding to the segments 
+                           assigned to this split (e.g., only training segments).
+            shape: Tuple representing the shape of the entire dataset on disk (e.g.; num_segments, 128, 128)
+            transform: Optional transformations (e.g., ToTensor)
         """
         self.mmap_path = mmap_path
-        self.split_indices = split_indices  # Questa è la "maschera" di accesso
+        self.split_indices = split_indices  # This is the "access mask"
+        self.shape = shape
         self.transform = transform
+        self.data = np.memmap(mmap_path, dtype='uint8', mode='r', shape=self.shape)
         
-        # Costanti
+        # Constants
         self.bars_per_segment = 8
         self.steps_per_bar = 16
         self.pitch_dim = 128
-        
-        # Apriamo il file in modalità lettura.
-        # Importante: shape[0] non è len(split_indices), ma la dimensione TOTALE del file su disco.
-        # Dobbiamo sapere quanti segmenti totali ci sono nel file .dat (es. 500000).
-        # Per semplicità qui assumo che tu lo sappia o lo calcoli dalla dimensione file.
-        # Esempio: total_segments = os.path.getsize(path) / (128*128)
-        
-        # TIP: Passare total_num_segments come argomento o calcolarlo è necessario per il memmap
-        # Qui lo calcolo dinamicamente per robustezza:
-        import os
-        file_size = os.path.getsize(mmap_path)
-        self.total_segments_on_disk = file_size // (128 * 128) # 1 byte per elemento (uint8)
-        
-        self.data = np.memmap(mmap_path, dtype='uint8', mode='r', 
-                              shape=(self.total_segments_on_disk, 128, 128))
 
     def __len__(self) -> int:
-        # Il dataset è grande quanto il numero di segmenti nello split * 8 battute
+        """ Return the number of bars in the dataset. """
         return len(self.split_indices) * self.bars_per_segment
 
     def __getitem__(self, idx: int):
-        # 1. Mappatura Logica -> Fisica
-        # L'idx del dataloader va da 0 a len(self).
-        # Dobbiamo capire a quale indice della lista `split_indices` corrisponde.
-        list_idx = idx // self.bars_per_segment  # Indice nella lista split_indices
-        bar_idx = idx % self.bars_per_segment    # Quale battuta (0-7)
+        """ Get a sample by index. """
+        # The dataloader idx goes from 0 to len(self).
+        list_idx = idx // self.bars_per_segment  # Index in the split_indices list
+        bar_idx = idx % self.bars_per_segment    # Which bar (0-7)
         
-        # Ora recuperiamo il VERO indice sul disco
+        # Now retrieve the TRUE index on disk
         physical_segment_idx = self.split_indices[list_idx]
         
-        # 2. Accesso ai dati (Memory Mapped)
-        # Leggiamo solo la riga specificata da physical_segment_idx
+        # Data Access (Memory Mapped)
         full_segment = np.array(self.data[physical_segment_idx], dtype=np.float32)
         
-        # 3. Slicing (Battuta Corrente e Precedente)
+        # Slicing Current Bar
         start_t = bar_idx * self.steps_per_bar
-        end_t = start_t + self.steps_per_bar
-        
-        current_bar = full_segment[:, start_t:end_t]
+        current_bar = full_segment[:, start_t : start_t+self.steps_per_bar]
 
         if bar_idx == 0:
-            # Padding vuoto per la prima battuta
+            # Empty padding for the first bar
             prev_bar = np.zeros((self.pitch_dim, self.steps_per_bar), dtype=np.float32)
         else:
+            # Slicing Previous Bar
             prev_start = (bar_idx - 1) * self.steps_per_bar
-            prev_end = prev_start + self.steps_per_bar
-            prev_bar = full_segment[:, prev_start:prev_end]
+            prev_bar = full_segment[:, prev_start : prev_start+self.steps_per_bar]
 
-        # 4. ToTensor
+        # ToTensor
         curr_tensor = torch.from_numpy(current_bar).unsqueeze(0)
         prev_tensor = torch.from_numpy(prev_bar).unsqueeze(0)
         

@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import librosa.display
 # For MIDI handling
 import pretty_midi
+# For numerical operations
+import numpy as np
 
 def display_prettymidi(pm: pretty_midi.PrettyMIDI, fs: int, pitch_range = (0,127), title="PrettyMIDI display"):
     """
@@ -19,6 +21,9 @@ def display_prettymidi(pm: pretty_midi.PrettyMIDI, fs: int, pitch_range = (0,127
     plt.figure(figsize=(14, 5))
 
     pianoroll = pm.get_piano_roll(fs=fs)[pitch_range[0]:pitch_range[1], :]
+
+    if pianoroll.size == 0: # Handle empty pianoroll case
+        pianoroll = np.zeros((pitch_range[1] - pitch_range[0], 16)) # Default to 16 time steps
 
     # Visualization with librosa
     librosa.display.specshow(
