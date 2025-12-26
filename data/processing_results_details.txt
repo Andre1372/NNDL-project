@@ -1,0 +1,14 @@
+==================================================
+               REPORT PREPROCESSING               
+==================================================
+
+Total files processed:                         299
+Of which valid source files:                   203
+Discarded files (No Piano):                     89
+Discarded files (Invalid Segments):              7
+Errors (Exceptions):                             0
+
+Total segments created:                       2191
+
+================= Error Details ==================
+
