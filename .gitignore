@@ -16,3 +16,4 @@ data/processed_npz/*
 # VSCode settings
 .vscode/
 .json
+out.mid
