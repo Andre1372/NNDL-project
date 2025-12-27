@@ -104,7 +104,7 @@ class PianoMmapDataset(Dataset):
         return prev_tensor, curr_tensor
 
 class MidiPreprocessor:
-    def __init__(self, select_instruments: list, note_start: int, note_end: int, output_dir: Path):
+    def __init__(self, select_instruments: list, note_start: int, note_end: int, output_dir: Path, min_notes: int = 5, min_polyphony: float = 1.0):
         """
         Initialize the MIDI preprocessor. It will divide MIDI files into piano roll segments of 8 bars (128 time steps).
         Args:
@@ -117,6 +117,8 @@ class MidiPreprocessor:
         self.note_start = note_start
         self.note_end = note_end
         self.output_dir = output_dir
+        self.min_notes = min_notes
+        self.min_polyphony = min_polyphony
 
     # To let this class be called like a function
     def __call__(self, midi_file_path: Path):
@@ -186,8 +188,18 @@ class MidiPreprocessor:
                         
                         window = piano_roll[:, start_col:end_col]
                         
-                        if np.sum(window) == 0:
-                            continue  # Skip empty windows
+                        note_count = np.sum(window)
+
+                        notes_per_step = np.sum(window, axis=0) 
+                        active_steps = notes_per_step[notes_per_step > 0] # Consideriamo solo i momenti in cui si suona
+                        avg_polyphony = np.mean(active_steps) if len(active_steps) > 0 else 0
+
+                        # --- APPLICAZIONE EURISTICHE ---
+                        if note_count < self.min_notes:
+                            continue  # Scarta segmenti troppo "sparsi" o quasi vuoti
+
+                        if avg_polyphony < self.min_polyphony:
+                            continue  # Scarta segmenti che sembrano strumenti monofonici (es. flauti o bassi)
 
                         if window.shape[1] != SAMPLES_PER_8_BARS or window.shape[0] != 128:
                             continue
