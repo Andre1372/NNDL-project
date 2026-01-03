@@ -1,4 +1,8 @@
 
+data/*.dat
+data/*.tsv
+data/*.txt
+
 # Environment
 venv_deep/
 __pycache__/
@@ -6,6 +10,7 @@ checkpoints/*
 lightning_logs/*
 saved_models/*
 data/clean_midi/*
+data/maestro-v3.0.0/*
 data/processed_npz/*
 data/prove/*
 
