@@ -9,16 +9,13 @@ __pycache__/
 checkpoints/*
 lightning_logs/*
 saved_models/*
-data/clean_midi/*
 data/maestro-v3.0.0/*
 data/processed_npz/*
-data/prove/*
 
 # Keep empty folders
 !.gitkeep
-!data/clean_midi/.gitkeep
+!data/maestro-v3.0.0/.gitkeep
 !data/processed_npz/.gitkeep
-!data/prove/.gitkeep
 
 # VSCode settings
 .vscode/

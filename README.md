@@ -81,11 +81,9 @@ Ora è **necessario installare fluidsynth** per riprodurre file audio.
 
 ### 3. Download del dataset
 
-Per scaricare il dataset da inserire nella cartella /data visitare il link [https://colinraffel.com/projects/lmd/](https://colinraffel.com/projects/lmd/) e scaricare il Clean MIDI subset.
+Per scaricare il dataset da inserire nella cartella /data visitare il link [https://magenta.tensorflow.org/datasets/maestro#v300](https://magenta.tensorflow.org/datasets/maestro#v300) e scaricare la versione 3.0.0.
 
-Se il download non parte copiare il mirror link e incollarlo in una nuova pagina. Poichè la sorgente non è protetta è necessario consentire il download perchè il browser cercherà di bloccarlo.
-
-In seguito estrarre il dataset ed inserirlo nella cartella _/data/clean_midi/_.
+In seguito estrarre il dataset ed inserirlo nella cartella _/data/maestro-v3.0.0/_.
 
 
 ### 4. Struttura del progetto
@@ -96,8 +94,8 @@ Verificate che la seguente struttura del progetto sia uguale alla vostra.
 NNDL-project/
 ├── checkpoints/           # Checkpoints del modello durante il training (pytorch)
 ├── data/                  # Dataset
-│   ├── clean_midi/            # Clean MIDI subset contiene sottocartelle di .mid
-|   ├── processed_npz/         # Conterrà i .mid preprocessati
+│   ├── maestro-v3.0.0/        # Clean MIDI subset contiene sottocartelle di .mid
+|   ├── processed_npz/         # Conterrà i .npz preprocessati
 │   └── prove/                 # Contiene un sottoinsieme di circa 300 .mid
 ├── lightning_logs/        # PyTorch Lightning logs (TensorBoard)
 ├── notebooks/             # Jupyter notebooks per esperimenti
