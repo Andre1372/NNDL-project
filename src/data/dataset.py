@@ -22,6 +22,57 @@ SAMPLES_PER_BAR = 16
 BARS_PER_SEGMENT = SAMPLES_PER_SEGMENT // SAMPLES_PER_BAR
 PITCH_DIM = 128
 
+
+def identify_chord(piano_roll_bar: np.ndarray) -> int:
+    """
+    Identifica l'accordo dominante in una sezione di piano roll (es. una battuta).
+    Ritorna un indice:
+    0-11: Major chords (C, C#, D...)
+    12-23: Minor chords (Cm, C#m, Dm...)
+    24: No Chord / Silence
+    """
+    # 1. Calcola il Chroma Vector (somma tutta l'energia su 12 note)
+    # piano_roll_bar shape: (128, time_steps)
+    chroma = np.zeros(12)
+    for i in range(128):
+        note_idx = i % 12
+        chroma[note_idx] += np.sum(piano_roll_bar[i, :])
+    
+    if np.sum(chroma) == 0:
+        return 24  # Silence
+    
+    # Normalizza
+    chroma = chroma / (np.max(chroma) + 1e-6)
+
+    # 2. Definisci i template per Major e Minor
+    # C Major: C (1), E (1), G (1) -> indici 0, 4, 7
+    # C Minor: C (1), Eb (1), G (1) -> indici 0, 3, 7
+    major_template = np.array([1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0])
+    minor_template = np.array([1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0])
+
+    max_score = -1
+    best_chord = 24
+
+    # 3. Confronta con tutti i 12 shift (trasposizioni)
+    for root in range(12):
+        # Shift circolare del chroma per allinearlo alla radice C
+        shifted_chroma = np.roll(chroma, -root)
+        
+        # Punteggio semplice: dot product
+        score_maj = np.dot(shifted_chroma, major_template)
+        score_min = np.dot(shifted_chroma, minor_template)
+
+        if score_maj > max_score:
+            max_score = score_maj
+            best_chord = root  # 0-11
+        
+        if score_min > max_score:
+            max_score = score_min
+            best_chord = root + 12 # 12-23
+
+    return best_chord
+
+
 class PolyDataset(Dataset):
 
     def __init__(self, inputs: np.ndarray, targets: np.ndarray, transform: Optional[Callable] = None):
@@ -234,13 +285,38 @@ class MidiPreprocessor:
 
                         if not self._is_segment_valid(piano_roll): continue
 
+                        # --- ### MODIFICA: ESTRAZIONE ACCORDI ---
+                        # Dividiamo il segmento (128 steps) in 8 battute da 16 steps
+                        segment_chords = []
+                        steps_per_bar = 16
+                        for b in range(8):
+                            b_start = b * steps_per_bar
+                            b_end = (b + 1) * steps_per_bar
+                            # Estraiamo la porzione di matrice corrispondente alla battuta
+                            bar_roll = piano_roll[:, b_start:b_end]
+                            # Identifichiamo l'accordo
+                            chord_idx = identify_chord(bar_roll)
+                            segment_chords.append(chord_idx)
+                        
+                        segment_chords = np.array(segment_chords, dtype=np.uint8)
+                        # ----------------------------------------
+
                         # Save segment to disk
                         save_name = f"{midi_file_path.parent.stem}_{midi_file_path.stem}_{segment_global_idx}.npz"
                         save_path = self.output_dir / save_name
                         
-                        # Save as sparse matrix to save space, will be densified during consolidation
+                        # --- ### MODIFICA: SALVATAGGIO COMPRESSO ---
+                        # Invece di sparse.save_npz, usiamo np.savez_compressed
+                        # per salvare sia il piano roll (come sparse) che gli accordi.
                         sparse_matrix = sparse.csr_matrix(piano_roll.astype(np.uint8))
-                        sparse.save_npz(save_path, sparse_matrix)
+                        
+                        np.savez_compressed(
+                            save_path, 
+                            piano_roll=sparse_matrix, # Chiave 'piano_roll'
+                            chords=segment_chords,    # Chiave 'chords'
+                            bpm=bpm
+                        )
+                        # -------------------------------------------
 
                         # Store metadata
                         results_meta.append({
@@ -260,4 +336,153 @@ class MidiPreprocessor:
 
         except Exception as e:
             return f"ERROR: {file_name}: {str(e)}"
+        
+# =================================================================================
+# PART 3: MEMORY MAPPED DATASET & UTILS (Add this to the end of dataset.py)
+# =================================================================================
+
+def create_mmap_dataset(source_dir: Path, output_prefix: str):
+    """ 
+    Consolidate .npz files into two memmap files: one for piano rolls, one for chords.
+    Args:
+        source_dir (Path): Directory containing the .npz files.
+        output_prefix (str): Prefix for output files (e.g. 'data/train' -> data/train_piano.dat, data/train_chords.dat)
+    """
+    source_dir = Path(source_dir)
+    piano_out = Path(f"{output_prefix}_piano.dat")
+    chords_out = Path(f"{output_prefix}_chords.dat")
+    
+    # Clean up existing
+    for p in [piano_out, chords_out]:
+        if p.exists():
+            try:
+                p.unlink()
+            except OSError as e:
+                print(f"Warning: Could not delete {p}: {e}")
+
+    files = sorted(list(source_dir.glob("*.npz")))
+    num_files = len(files)
+    
+    if num_files == 0:
+        raise ValueError("No .npz files found in source_dir.")
+    
+    print(f"Found {num_files} segments. Creating memory mapped files...")
+
+    # 1. Create memmap placeholders
+    # Piano: (Num_Segments, 128 pitch, 128 time)
+    fp_piano = np.memmap(piano_out, dtype='uint8', mode='w+', shape=(num_files, PITCH_DIM, SAMPLES_PER_SEGMENT))
+    # Chords: (Num_Segments, 8 bars) - stores integer indices 0-24
+    fp_chords = np.memmap(chords_out, dtype='uint8', mode='w+', shape=(num_files, BARS_PER_SEGMENT))
+
+    try:
+        # 2. Fill them
+        for i, file_path in enumerate(tqdm(files, ncols=80, desc="Consolidating")):
+            try:
+                # Load compressed file
+                with np.load(file_path, allow_pickle=True) as data:
+                    # Piano Roll (saved as sparse csr inside the npz)
+                    sparse_matrix = data['piano_roll'].item() 
+                    fp_piano[i] = sparse_matrix.todense().astype('uint8')
+                    
+                    # Chords (saved as dense array)
+                    fp_chords[i] = data['chords'].astype('uint8')
+                    
+            except Exception as e:
+                print(f"Error processing {file_path}: {e}")
+                # Fill with zeros/silence on error to keep alignment
+                fp_piano[i] = np.zeros((PITCH_DIM, SAMPLES_PER_SEGMENT), dtype='uint8')
+                fp_chords[i] = np.full((BARS_PER_SEGMENT,), 24, dtype='uint8') # 24 = Silence code
+        
+        # Flush changes to disk
+        fp_piano.flush()
+        fp_chords.flush()
+        print(f"Dataset created successfully:\n- {piano_out}\n- {chords_out}")
+        
+    finally:
+        # Release file handles
+        del fp_piano
+        del fp_chords
+        gc.collect()
+
+
+class PianoMmapDataset(Dataset):
+    def __init__(self, mmap_prefix: str, split_indices: np.ndarray, transform=None):
+        """
+        Dataset that reads from memory-mapped files (.dat).
+        Returns triplets: (prev_bar, current_bar, current_chord_idx).
+        
+        Args:
+            mmap_prefix: Prefix of the .dat files (e.g. "data/train"). 
+                         Expects "{prefix}_piano.dat" and "{prefix}_chords.dat".
+            split_indices: Array of integer indices defining which segments belong to this split.
+            transform: Optional transform.
+        """
+        self.mmap_prefix = mmap_prefix
+        self.split_indices = split_indices
+        self.transform = transform
+        
+        # Determine shape from file size or pass it as argument. 
+        # Here we assume we know the total count or derive it.
+        # A safer way is to open in 'r' mode and read shape.
+        piano_path = f"{mmap_prefix}_piano.dat"
+        chords_path = f"{mmap_prefix}_chords.dat"
+        
+        # Open in read-only mode to get shapes
+        self.piano_data = np.memmap(piano_path, dtype='uint8', mode='r')
+        # Reshape logic: Total bytes / bytes_per_sample (128*128)
+        num_segments = self.piano_data.shape[0] // (PITCH_DIM * SAMPLES_PER_SEGMENT)
+        self.piano_data = self.piano_data.reshape((num_segments, PITCH_DIM, SAMPLES_PER_SEGMENT))
+        
+        self.chords_data = np.memmap(chords_path, dtype='uint8', mode='r')
+        self.chords_data = self.chords_data.reshape((num_segments, BARS_PER_SEGMENT))
+        
+    def __len__(self) -> int:
+        """ Return the number of bars (not segments!) in the dataset. """
+        return len(self.split_indices) * BARS_PER_SEGMENT
+
+    def __getitem__(self, idx: int):
+        """ 
+        Get a sample by index.
+        Returns:
+            prev_tensor (Tensor): (1, 128, 16) - The previous bar (condition)
+            curr_tensor (Tensor): (1, 128, 16) - The current bar (target)
+            chord_tensor (Tensor): (1,) - The chord index for the current bar
+        """
+        # Map linear index (0 to N*8) to (segment_idx, bar_idx)
+        list_idx = idx // BARS_PER_SEGMENT
+        bar_idx = idx % BARS_PER_SEGMENT
+        
+        # Retrieve the physical index of the segment on disk
+        physical_idx = self.split_indices[list_idx]
+        
+        # 1. Retrieve Piano Data (Current Bar)
+        # Note: memmap slicing returns a new array, usually efficient
+        full_segment = np.array(self.piano_data[physical_idx], dtype=np.float32)
+        
+        start_t = bar_idx * SAMPLES_PER_BAR
+        end_t = start_t + SAMPLES_PER_BAR
+        current_bar = full_segment[:, start_t : end_t]
+
+        # 2. Retrieve Piano Data (Previous Bar)
+        if bar_idx == 0:
+            # Padding for first bar
+            prev_bar = np.zeros((PITCH_DIM, SAMPLES_PER_BAR), dtype=np.float32)
+        else:
+            prev_start = (bar_idx - 1) * SAMPLES_PER_BAR
+            prev_bar = full_segment[:, prev_start : prev_start + SAMPLES_PER_BAR]
+
+        # 3. Retrieve Chord Data
+        # chords_data shape is (Num_Segments, 8)
+        current_chord_idx = self.chords_data[physical_idx, bar_idx]
+        
+        # 4. To Tensor
+        curr_tensor = torch.from_numpy(current_bar).unsqueeze(0) # (1, 128, 16)
+        prev_tensor = torch.from_numpy(prev_bar).unsqueeze(0)    # (1, 128, 16)
+        chord_tensor = torch.tensor(current_chord_idx, dtype=torch.long) # Scalar tensor
+        
+        if self.transform:
+            curr_tensor = self.transform(curr_tensor)
+            prev_tensor = self.transform(prev_tensor)
+
+        return prev_tensor, curr_tensor, chord_tensor
         

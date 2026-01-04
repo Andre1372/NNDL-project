@@ -16,23 +16,9 @@ class BaseModel(pl.LightningModule):
         super(BaseModel, self).__init__()
         self.learning_rate = learning_rate
         self.criterion = criterion
+        # Nel __init__ del tuo modello
+        # 25 perché 0-23 sono accordi, 24 è silenzio. 12 è una dimensione arbitraria (ma sensata).
 
-    def forward(self) -> torch.Tensor:
-        """ Forward pass through the model."""
-        raise NotImplementedError("Subclasses must implement forward()")
-    
-    def training_step(self, batch: tuple, batch_idx) -> torch.Tensor:
-        """ Training step for PyTorch Lightning. """
-        raise NotImplementedError("Subclasses must implement training_step()")
-    
-    def validation_step(self, batch: tuple, batch_idx) -> torch.Tensor:
-        """ Validation step for PyTorch Lightning. """
-        raise NotImplementedError("Subclasses must implement validation_step()")
-        
-    def test_step(self, batch: tuple, batch_idx) -> torch.Tensor:
-        """ Test step for PyTorch Lightning. """
-        raise NotImplementedError("Subclasses must implement test_step()")
-    
     def configure_optimizers(self) -> torch.optim.Optimizer:
         """ Configure optimizer for PyTorch Lightning. """
         raise NotImplementedError("Subclasses must implement configure_optimizers()")
@@ -155,7 +141,8 @@ class Generator(nn.Module):
     def __init__(self, input_size):
         super().__init__()
         self.input_size = input_size
-
+        self.chord_dim = 12  # Dimensione dell'embedding degli accordi
+        self.chord_embedding = nn.Embedding(num_embeddings=25, embedding_dim=self.chord_dim)
         # --- Generator part ---
         # Fully connected layers
         self.ff_nets = nn.Sequential(
@@ -168,23 +155,24 @@ class Generator(nn.Module):
         # Reshape layer (512 x 1 -> 256 x 1 x 2)
         self.reshape = nn.Unflatten(dim=1, unflattened_size=(256, 1, 2))
         # Transposed convolutional layers
+        # Input Concat Channels: 256 (from reshape) + 256 (from conditioner) + 12 (from chords) = 524
         self.transp_conv_1 = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=512, out_channels=256, kernel_size=(1, 2), stride=(1, 2)),
+            nn.ConvTranspose2d(in_channels=512+12, out_channels=256, kernel_size=(1, 2), stride=(1, 2)),
             nn.BatchNorm2d(256),
             nn.ReLU()
         )
         self.transp_conv_2 = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=512, out_channels=256, kernel_size=(1, 2), stride=(1, 2)),
+            nn.ConvTranspose2d(in_channels=512+12, out_channels=256, kernel_size=(1, 2), stride=(1, 2)),
             nn.BatchNorm2d(256),
             nn.ReLU()
         )
         self.transp_conv_3 = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=512, out_channels=256, kernel_size=(1, 2), stride=(1, 2)),
+            nn.ConvTranspose2d(in_channels=512+12, out_channels=256, kernel_size=(1, 2), stride=(1, 2)),
             nn.BatchNorm2d(256),
             nn.ReLU()
         )
         self.transp_conv_4 = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=512, out_channels=1, kernel_size=(128, 1), stride=1),
+            nn.ConvTranspose2d(in_channels=512+12, out_channels=1, kernel_size=(128, 1), stride=1),
             nn.Sigmoid() # Output values between 0 and 1
         )
 
@@ -210,7 +198,8 @@ class Generator(nn.Module):
             nn.LeakyReLU()
         )
 
-    def forward(self, z, condition_matrix):
+    def forward(self, z, condition_matrix, chord_idx):
+        chord_vector = self.chord_embedding(chord_idx)
         # Conditioner process condition_matrix
         condition_step1 = self.conv_1(condition_matrix)
         condition_step2 = self.conv_2(condition_step1)
@@ -220,19 +209,34 @@ class Generator(nn.Module):
         # Generator process noise
         linear_output = self.ff_nets(z)
         reshaped_output = self.reshape(linear_output)
+
+        # 3. Helper function per concatenare gli accordi
+        # Espande il vettore (B, 12) per matchare le dimensioni H, W del layer corrente
+        def concat_chords(feature_map, cond_map, chord_vec):
+            # feature_map: (B, C1, H, W)
+            # cond_map: (B, C2, H, W)
+            # chord_vec: (B, 12)
+            b, _, h, w = feature_map.shape
+            # Reshape e Expand: (B, 12) -> (B, 12, 1, 1) -> (B, 12, H, W)
+            chord_expanded = chord_vec.view(b, self.chord_dim, 1, 1).expand(b, self.chord_dim, h, w)
+            # Concatena tutto lungo i canali
+            return torch.cat((feature_map, cond_map, chord_expanded), dim=1)
         
-        # Generator Step 1: Input (Gen Start) + Condition (End)
-        merged1 = torch.cat((reshaped_output, condition_step4), dim=1)
-        output_step1 = self.transp_conv_1(merged1)
-        # Generator Step 2: Input (Previous Output) + Condition (Previous Step)
-        merged2 = torch.cat((output_step1, condition_step3), dim=1)
-        output_step2 = self.transp_conv_2(merged2)
-        # Generator Step 3: Input (Previous Output) + Condition (Previous Step)
-        merged3 = torch.cat((output_step2, condition_step2), dim=1)
-        output_step3 = self.transp_conv_3(merged3)
-        # Generator Step 4: Input (Previous Output) + Condition (First Step)
-        merged4 = torch.cat((output_step3, condition_step1), dim=1)
-        output_step4 = self.transp_conv_4(merged4)
+        # Step 1: Noise + Cond4 + Chords
+        merged1 = concat_chords(reshaped_output, condition_step4, chord_vector) # Canali: 256+256+12 = 524
+        output_step1 = self.transp_conv_1(merged1)                      # Output: (B, 256, 1, 4)
+
+        # Step 2: Out1 + Cond3 + Chords
+        merged2 = concat_chords(output_step1, condition_step3, chord_vector)         # Canali: 524
+        output_step2 = self.transp_conv_2(merged2)                      # Output: (B, 256, 1, 8)
+
+        # Step 3: Out2 + Cond2 + Chords
+        merged3 = concat_chords(output_step2, condition_step2, chord_vector)         # Canali: 524
+        output_step3 = self.transp_conv_3(merged3)                      # Output: (B, 256, 1, 16)
+
+        # Step 4: Out3 + Cond1 + Chords
+        merged4 = concat_chords(output_step3, condition_step1, chord_vector)         # Canali: 524
+        output_step4 = self.transp_conv_4(merged4)                      # Output: (B, 1, 128, 16)
         
         return output_step4
     
@@ -240,6 +244,7 @@ class Generator(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self):
         super().__init__()
+        self.chord_embedding = nn.Embedding(num_embeddings=25, embedding_dim=12)
 
         # Convolutional layers
         self.first_conv = nn.Conv2d(in_channels=1, out_channels=14, kernel_size=(128, 2), stride=(1, 2)) # Separated by the other for the feature matching technique
@@ -253,18 +258,27 @@ class Discriminator(nn.Module):
         self.flatten = nn.Flatten()
         # Feedforward layers
         self.ff_layers = nn.Sequential(
-            nn.Linear(in_features=77*3, out_features=1024),
+            nn.Linear(in_features=77*3 + 12, out_features=1024), # 12 more for the chords
             nn.BatchNorm1d(1024),
             nn.LeakyReLU(),
             nn.Linear(in_features=1024, out_features=1),
             nn.Sigmoid()
         )
 
-    def forward(self, x):
+    def forward(self, x, chord_idx):
+        """
+        Args:
+            x: Piano roll corrente (B, 1, 128, 16)
+            chord_vector: Embedding accordo (B, 12)
+        """
+        chord_vector = self.chord_embedding(chord_idx)
+
         f = self.first_conv(x)
         out_conv = self.conv_layers(f)
         out_flat = self.flatten(out_conv)
-        output = self.ff_layers(out_flat)
+
+        combined = torch.cat((out_flat, chord_vector), dim=1) # Shape: (B, 231 + 12)
+        output = self.ff_layers(combined)
         return output, f
     
 
@@ -288,14 +302,16 @@ class PianoGAN(BaseModel):
         # Important: Disable automatic optimization to manage G and D separately
         self.automatic_optimization = False
 
-    def forward(self, z: torch.Tensor, prev_bars: torch.Tensor) -> torch.Tensor:
+    def forward(self, z: torch.Tensor, prev_bars: torch.Tensor, chord_idx: torch.Tensor) -> torch.Tensor:
         """
         Generate a new bar.
         Args:
             z: Noise vector
             prev_bars: Conditioning matrix (previous bar)
+            chord_idx: Indices of the chords (0-24)
         """
-        return self.generator(z, prev_bars)
+        # Lookup embedding
+        return self.generator(z, prev_bars, chord_idx)
 
     def configure_optimizers(self):
         """ Define the two separate optimizers for Discriminator and Generator. """
@@ -309,7 +325,7 @@ class PianoGAN(BaseModel):
         opt_d, opt_g = self.optimizers()
         
         # Unpacking the batch
-        prev_bars, curr_bars = batch
+        prev_bars, curr_bars, chord_idx = batch
         batch_size = prev_bars.size(0)
         
         # Generate noise
@@ -321,13 +337,13 @@ class PianoGAN(BaseModel):
         # ---------------------
         
         # Generazione fake (senza aggiornare gradienti G per ora)
-        generated_bars = self.generator(noise, prev_bars)
+        generated_bars = self.generator(noise, prev_bars, chord_idx)
 
         # Forward pass D su real
-        real_output, _ = self.discriminator(curr_bars)
+        real_output, _ = self.discriminator(curr_bars, chord_idx)
         
         # Forward pass D su fake (detach per non propagare su G)
-        fake_output_detached, _ = self.discriminator(generated_bars.detach())
+        fake_output_detached, _ = self.discriminator(generated_bars.detach(), chord_idx)
 
         # Calcolo Loss Discriminator (replicando `discriminator_loss` di test.py)
         # test.py usa BCEWithLogitsLoss.
@@ -346,7 +362,7 @@ class PianoGAN(BaseModel):
         # ---------------------
         
         # Forward pass D su fake (questa volta serve il gradiente per G)
-        fake_output, _ = self.discriminator(generated_bars)
+        fake_output, _ = self.discriminator(generated_bars, chord_idx)
         
         # Calcolo Loss Generator (replicando `generator_loss` di test.py)
         # Il generatore vuole ingannare il discriminatore, quindi target = 1
