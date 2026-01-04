@@ -1,20 +1,26 @@
 
-# Base Dataset class from PyTorch
-from torch.utils.data import Dataset
-# For transformations on data
-from typing import Optional, Callable
-# For file operations
+# Standard lybrary
 from pathlib import Path
+from typing import List, Dict, Optional, Callable
+import gc
 # For midi processing
 import pretty_midi
-# To work with matrices
+# Numpy/torch
 import numpy as np
-import scipy.sparse as sparse
 import torch
+from torch.utils.data import Dataset
+# For dataframes
+import pandas as pd
 # For progress bars
 from tqdm import tqdm
-# For garbage collection
-import gc
+# For sparse matrices
+from scipy import sparse
+
+# Constants
+SAMPLES_PER_SEGMENT = 128
+SAMPLES_PER_BAR = 16
+BARS_PER_SEGMENT = SAMPLES_PER_SEGMENT // SAMPLES_PER_BAR
+PITCH_DIM = 128
 
 class PolyDataset(Dataset):
 
@@ -43,57 +49,71 @@ class PolyDataset(Dataset):
 
         return sample
     
-class PianoMmapDataset(Dataset):
-    def __init__(self, mmap_path: str, split_indices: np.ndarray, shape: tuple, transform=None):
+
+class PianoDataset(Dataset):
+
+    def __init__(self, data_dir: Path, split_indices: Optional[List[int]] = None, transform: Optional[Callable] = None):
         """
-        Initialize the dataset.
-        Args:
-            mmap_path: Path to file .dat
-            split_indices: Array of indices (integers) corresponding to the segments 
-                           assigned to this split (e.g., only training segments).
-            shape: Tuple representing the shape of the entire dataset on disk (e.g.; num_segments, 128, 128)
-            transform: Optional transformations (e.g., ToTensor)
-        """
-        self.mmap_path = mmap_path
-        self.split_indices = split_indices  # This is the "access mask"
-        self.shape = shape
-        self.transform = transform
-        self.data = np.memmap(mmap_path, dtype='uint8', mode='r', shape=self.shape)
+        Dataset that loads piano roll segments from a directory of .npz files.
+        ALL bars are loaded into memory during initialization.
         
-        # Constants
-        self.bars_per_segment = 8
-        self.steps_per_bar = 16
-        self.pitch_dim = 128
+        Args:
+            data_dir: Path to the directory containing .npz files.
+            split_indices: Optional list/array of indices to select specific files from the sorted directory listing.
+            transform: Optional transformations to apply to the tensors.
+        """
+        self.data_dir = data_dir
+        self.transform = transform
+        
+        # Load all file paths and sort them to ensure consistent ordering
+        all_files = sorted(list(self.data_dir.glob("*.npz")))
+        if len(all_files) == 0:
+            raise ValueError("No .npz files found.")
+        
+        # Filter files if split_indices are provided
+        if split_indices is not None:
+            self.file_paths = [all_files[idx] for idx in split_indices]
+        else:
+            self.file_paths = all_files
+            
+        if not self.file_paths:
+            print("Warning: PianoDataset initialized with empty file list.")
+
+        # Pre-load all data
+        self.data = []
+        for file_path in tqdm(self.file_paths, desc="Loading PianoDataset"):
+            try:
+                sparse_matrix = sparse.load_npz(file_path)
+                full_segment = sparse_matrix.toarray().astype(np.float32) # Shape: (128, 128)
+                
+                # Verify shape
+                if full_segment.shape != (PITCH_DIM, SAMPLES_PER_SEGMENT):
+                    print(f"Skipping {file_path}: Invalid shape {full_segment.shape}")
+                    continue
+
+                # Split directly into bars and store
+                self.data.extend([full_segment[:, b*SAMPLES_PER_BAR : (b + 1)*SAMPLES_PER_BAR] for b in range(BARS_PER_SEGMENT)])
+                    
+            except Exception as e:
+                print(f"Error loading {file_path}: {e}")
 
     def __len__(self) -> int:
-        """ Return the number of bars in the dataset. """
-        return len(self.split_indices) * self.bars_per_segment
+        """Return the total number of bars in the dataset."""
+        return len(self.data)
 
     def __getitem__(self, idx: int):
-        """ Get a sample by index. """
-        # The dataloader idx goes from 0 to len(self).
-        list_idx = idx // self.bars_per_segment  # Index in the split_indices list
-        bar_idx = idx % self.bars_per_segment    # Which bar (0-7)
+        """Get a sample (previous bar, current bar) by index."""
+        current_bar = self.data[idx]
         
-        # Now retrieve the TRUE index on disk
-        physical_segment_idx = self.split_indices[list_idx]
-        
-        # Data Access (Memory Mapped)
-        full_segment = np.array(self.data[physical_segment_idx], dtype=np.float32)
-        
-        # Slicing Current Bar
-        start_t = bar_idx * self.steps_per_bar
-        current_bar = full_segment[:, start_t : start_t+self.steps_per_bar]
+        # Determine if this bar is the start of a segment (every 8th bar)
+        is_first_bar = (idx % BARS_PER_SEGMENT == 0)
 
-        if bar_idx == 0:
-            # Empty padding for the first bar
-            prev_bar = np.zeros((self.pitch_dim, self.steps_per_bar), dtype=np.float32)
+        if is_first_bar:
+            prev_bar = np.zeros((PITCH_DIM, SAMPLES_PER_BAR), dtype=np.float32)
         else:
-            # Slicing Previous Bar
-            prev_start = (bar_idx - 1) * self.steps_per_bar
-            prev_bar = full_segment[:, prev_start : prev_start+self.steps_per_bar]
+            prev_bar = self.data[idx - 1]
 
-        # ToTensor
+        # Convert to tensors, unsqueeze(0) adds the channel dimension (1, 128, 16)
         curr_tensor = torch.from_numpy(current_bar).unsqueeze(0)
         prev_tensor = torch.from_numpy(prev_bar).unsqueeze(0)
         
@@ -103,150 +123,141 @@ class PianoMmapDataset(Dataset):
 
         return prev_tensor, curr_tensor
 
+
 class MidiPreprocessor:
-    def __init__(self, select_instruments: list, note_start: int, note_end: int, output_dir: Path):
+    """
+    Preprocessor for MIDI files. 
+    It segments MIDI files into piano rolls of fixed length (default 8 bars / 128 samples).
+    Results are stored in-memory in `self.bars` and metadata is updated in the provided DataFrame.
+    """
+
+    def __init__(self, output_dir: Path, select_instruments: List[int], note_start: int, note_end: int, min_notes: int = 5, min_polyphony: float = 1.0):
         """
-        Initialize the MIDI preprocessor. It will divide MIDI files into piano roll segments of 8 bars (128 time steps).
+        Initialize the MIDI preprocessor.
+
         Args:
-            select_instruments: List of MIDI program numbers to select (e.g., [0] for Acoustic Grand Piano)
-            note_start: The starting MIDI note number (inclusive)
-            note_end: The ending MIDI note number (exclusive)
-            output_dir: Directory to save processed files
+            output_dir: Directory where processed .npz segments will be saved.
+            select_instruments: List of MIDI program numbers to select.
+            note_start: The starting MIDI note number (inclusive).
+            note_end: The ending MIDI note number (exclusive).
+            min_notes: Minimum number of notes required in a segment to be kept.
+            min_polyphony: Minimum average polyphony required in a segment to be kept.
         """
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         self.select_instruments = select_instruments
         self.note_start = note_start
         self.note_end = note_end
-        self.output_dir = output_dir
+        self.min_notes = min_notes
+        self.min_polyphony = min_polyphony
 
-    # To let this class be called like a function
+    def _process_piano_roll(self, instr: pretty_midi.Instrument, fs: float, time_segment: np.ndarray) -> np.ndarray:
+        """Extracts and cleans the piano roll for a specific instrument and time segment."""
+        # Get piano roll (shape: pitch x time)
+        piano_roll = instr.get_piano_roll(fs=fs, times=time_segment)
+        
+        # Binarize: Any velocity > 0 is treated as Note On (1)
+        piano_roll[piano_roll > 0] = 1
+        
+        # Clip pitch range
+        piano_roll[:self.note_start, :] = 0
+        piano_roll[self.note_end:, :] = 0
+        
+        return piano_roll
+
+    def _is_segment_valid(self, piano_roll: np.ndarray) -> bool:
+        """Checks if a segment is valid based on dimensions, note count, and polyphony."""
+        # Check dimensions
+        if piano_roll.shape != (PITCH_DIM, SAMPLES_PER_SEGMENT): return False
+
+        # Check sparsity (Minimum number of notes)
+        if np.sum(piano_roll) < self.min_notes: return False
+
+        # Check polyphony (Avoid monophonic tracks)
+        notes_per_step = np.sum(piano_roll, axis=0)
+        active_steps = notes_per_step[notes_per_step > 0]
+        avg_polyphony = np.mean(active_steps) if len(active_steps) > 0 else 0
+        return avg_polyphony >= self.min_polyphony
+
     def __call__(self, midi_file_path: Path):
-
-        # Create unique ID combining Artist and Title since more artists can have same song titles
-        artist = midi_file_path.parent.name.replace(" ", "_")
-        song_name = midi_file_path.stem.replace(" ", "_")
-        unique_id = f"{artist}__{song_name}"
+        """
+        Process a single MIDI file.
+        Returns a list of metadata dictionaries for valid segments or an error string.
+        Segments are saved as .npz files.
+        """
+        # Unique identifier for the file (using parent folder name to avoid collisions)
+        file_name = f"{midi_file_path.parent.stem}/{midi_file_path.stem}"
+        
+        results_meta = []
 
         try:
-            result = []
-
-            # Extract piano tracks
             pm = pretty_midi.PrettyMIDI(str(midi_file_path))
 
-            # Extract only selected instruments
+            # Filter instruments
             piano_instruments = [instr for instr in pm.instruments if instr.program in self.select_instruments and not instr.is_drum]
-            if piano_instruments == []:
-                return f"DISCARDED: {unique_id}: NO PIANO" # Skip files with no piano instruments
+            if len(piano_instruments) == 0:
+                return f"DISCARDED: {file_name} (NO PIANO)" # Skip files with no piano instruments
             
-            # Extract tempo changes
+            # ----------------------------------------------------------
+            # 1. Divide the MIDI file into windows of same tempo
+            # ----------------------------------------------------------
+            # Get tempo changes
             tempo_change_times, tempi = pm.get_tempo_changes()
 
-            for i in range(len(tempo_change_times)):
-                # Find start and end times for this tempo segment
-                t_start = tempo_change_times[i]
-                t_end = tempo_change_times[i+1] if i+1 < len(tempo_change_times) else pm.get_end_time()
+            segment_global_idx = 0
+
+            for i, t_start in enumerate(tempo_change_times):
+                t_end = tempo_change_times[i+1] if i + 1 < len(tempo_change_times) else pm.get_end_time()
                 
                 bpm = tempi[i]
                 if bpm <= 0: continue # Skip invalid bpm
 
                 # Compute fs to have exactly 16 notes every 4 beats (4/4 time signature)
-                # one beat tempo = bpm/60  -->  16 fs = 4 bpm / 60  -->  fs = bpm/15 
-                fs = bpm / 15.0 
+                fs = bpm / 15.0  # 16 fs = 4 bpm / 60 
                 
-                # Create the exact time grid for this segment
-                times = np.arange(t_start, t_end, 1./fs)
-                
-                # If the segment is too short (less than 8 bars or less than 128 samples), skip it
-                SAMPLES_PER_8_BARS = 128 
-                if len(times) < SAMPLES_PER_8_BARS:
-                    continue
+                # Generate time grid
+                time_window = np.arange(t_start, t_end, 1.0/fs)
+                # Check minimum length
+                if len(time_window) < SAMPLES_PER_SEGMENT: continue
 
-                programs_in_segment = []
-
-                for instr in piano_instruments:
-                    if instr.program in programs_in_segment:
-                        continue  # Skip duplicate instruments
-                    programs_in_segment.append(instr.program)
-
-                    # Compute the piano roll only for the specified times (128, len(times))
-                    piano_roll = instr.get_piano_roll(fs=fs, times=times) 
+                # ----------------------------------------------------------
+                # 2. Divide each tempo window into segments of 8 bars
+                # ----------------------------------------------------------
+                for segment_start_idx in range(0, len(time_window), SAMPLES_PER_SEGMENT):
+                    time_segment = time_window[segment_start_idx : segment_start_idx + SAMPLES_PER_SEGMENT]
                     
-                    # Binarization (Velocity > 0 becomes 1)
-                    piano_roll[piano_roll > 0] = 1
-                    
-                    # Ignore notes outside the specified range
-                    piano_roll[:self.note_start, :] = 0
-                    piano_roll[self.note_end:, :] = 0
+                    # ----------------------------------------------------------
+                    # 3. Process each instrument for this segment
+                    # ----------------------------------------------------------
+                    for instr in piano_instruments:
+                        piano_roll = self._process_piano_roll(instr, fs, time_segment)
 
-                    # Segment the matrix into chunks of width 128 (8 bars)
-                    num_windows = piano_roll.shape[1] // SAMPLES_PER_8_BARS
-                    
-                    for w in range(num_windows):
-                        start_col = w * SAMPLES_PER_8_BARS
-                        end_col = start_col + SAMPLES_PER_8_BARS
+                        if not self._is_segment_valid(piano_roll): continue
+
+                        # Save segment to disk
+                        save_name = f"{midi_file_path.parent.stem}_{midi_file_path.stem}_{segment_global_idx}.npz"
+                        save_path = self.output_dir / save_name
                         
-                        window = piano_roll[:, start_col:end_col]
+                        # Save as sparse matrix to save space, will be densified during consolidation
+                        sparse_matrix = sparse.csr_matrix(piano_roll.astype(np.uint8))
+                        sparse.save_npz(save_path, sparse_matrix)
+
+                        # Store metadata
+                        results_meta.append({
+                            'filename': save_name,
+                            'original_file': file_name,
+                            'instrument': instr.program,
+                            'bpm': bpm,
+                            'fs': fs
+                        })
                         
-                        if np.sum(window) == 0:
-                            continue  # Skip empty windows
+                        segment_global_idx += 1
 
-                        if window.shape[1] != SAMPLES_PER_8_BARS or window.shape[0] != 128:
-                            continue
-                            
-                        # Save an efficient sparse representation
-                        output_filename = f"{unique_id}_instr{instr.program}_ts{times[start_col]:.2f}_te{times[end_col-1]:.2f}_fs{fs:.2f}.npz"
-                        save_path = self.output_dir / output_filename
-                        sparse_window = sparse.csr_matrix(window)
-                        sparse.save_npz(save_path, sparse_window)
-                        result.append({"filename": output_filename, "instrument": instr.program, "fs": fs, "bpm": bpm})
-
-            if len(result) == 0:
-                return f"DISCARDED: {unique_id}: NO VALID SEGMENTS"
+            if segment_global_idx == 0:
+                return f"DISCARDED: {file_name} (NO VALID SEGMENTS)"
             
-            return result
-        
+            return results_meta
+
         except Exception as e:
-            return f"ERROR: {unique_id}: {e}"
+            return f"ERROR: {file_name}: {str(e)}"
         
-def create_mmap_dataset(source_dir: Path, output_file: Path):
-    """ 
-    Consolidate all the files .npz in one memmap file.
-    Args:
-        source_dir (Path): Directory containing the .npz files.
-        output_file (Path): Path to the output memmap file.
-    """
-    source_dir = Path(source_dir)
-    output_file = Path(output_file)
-    
-    # If the file exists, try to remove it
-    if output_file.exists():
-        try:
-            output_file.unlink()
-        except OSError as e:
-            raise RuntimeWarning(f"Unable to remove existing file. It might be in use. Error: {e}")
-
-    files = sorted(list(source_dir.glob("*.npz")))
-    num_files = len(files)
-    
-    if num_files == 0:
-        raise ValueError("No .npz files found.")
-    
-    # Create the memmap file
-    fp = np.memmap(output_file, dtype='uint8', mode='w+', shape=(num_files, 128, 128))
-
-    try:
-        for i, file_path in enumerate(tqdm(files, ncols=150, desc="Consolidating .npz files")):
-            try:
-                sparse_matrix = sparse.load_npz(file_path)
-                dense_matrix = sparse_matrix.todense()
-                fp[i] = dense_matrix.astype('uint8')
-            except Exception as e:
-                print(f"Error in file {file_path}: {e}")
-                fp[i] = np.zeros((128, 128), dtype='uint8')
-        
-        # Flush data to disk
-        fp.flush()
-        
-    finally:
-        # Delete the Python object and force garbage collector to release the file handle
-        del fp
-        gc.collect()
