@@ -148,9 +148,11 @@ class Generator(nn.Module):
         self.ff_nets = nn.Sequential(
             nn.Linear(in_features=input_size, out_features=1024),
             nn.BatchNorm1d(num_features=1024),
-            nn.ReLU(),
+            nn.LeakyReLU(0.2), # Passaggio a LeakyReLU per catturare sfumature
+            nn.Dropout(0.3), #vediamo se funziona, nel caso tolgo
             nn.Linear(in_features=1024, out_features=512),
-            nn.ReLU(),
+            nn.BatchNorm1d(num_features=512),
+            nn.LeakyReLU(0.2),
         )
         # Reshape layer (512 x 1 -> 256 x 1 x 2)
         self.reshape = nn.Unflatten(dim=1, unflattened_size=(256, 1, 2))
@@ -159,17 +161,17 @@ class Generator(nn.Module):
         self.transp_conv_1 = nn.Sequential(
             nn.ConvTranspose2d(in_channels=512+12, out_channels=256, kernel_size=(1, 2), stride=(1, 2)),
             nn.BatchNorm2d(256),
-            nn.ReLU()
+            nn.LeakyReLU(0.2)
         )
         self.transp_conv_2 = nn.Sequential(
             nn.ConvTranspose2d(in_channels=512+12, out_channels=256, kernel_size=(1, 2), stride=(1, 2)),
             nn.BatchNorm2d(256),
-            nn.ReLU()
+            nn.LeakyReLU(0.2)
         )
         self.transp_conv_3 = nn.Sequential(
             nn.ConvTranspose2d(in_channels=512+12, out_channels=256, kernel_size=(1, 2), stride=(1, 2)),
             nn.BatchNorm2d(256),
-            nn.ReLU()
+            nn.LeakyReLU(0.2)
         )
         self.transp_conv_4 = nn.Sequential(
             nn.ConvTranspose2d(in_channels=512+12, out_channels=1, kernel_size=(128, 1), stride=1),
@@ -180,22 +182,22 @@ class Generator(nn.Module):
         self.conv_1 = nn.Sequential(
             nn.Conv2d(in_channels=1, out_channels=256, kernel_size=(128, 1), stride=1),
             nn.BatchNorm2d(256),
-            nn.LeakyReLU()
+            nn.LeakyReLU(0.2)
         )
         self.conv_2 = nn.Sequential(
             nn.Conv2d(in_channels=256, out_channels=256, kernel_size=(1, 2), stride=(1, 2)),
             nn.BatchNorm2d(256),
-            nn.LeakyReLU()
+            nn.LeakyReLU(0.2)
         )
         self.conv_3 = nn.Sequential(
             nn.Conv2d(in_channels=256, out_channels=256, kernel_size=(1, 2), stride=(1, 2)),
             nn.BatchNorm2d(256),
-            nn.LeakyReLU()
+            nn.LeakyReLU(0.2)
         )
         self.conv_4 = nn.Sequential(
             nn.Conv2d(in_channels=256, out_channels=256, kernel_size=(1, 2), stride=(1, 2)),
             nn.BatchNorm2d(256),
-            nn.LeakyReLU()
+            nn.LeakyReLU(0.2)
         )
 
     def forward(self, z, condition_matrix, chord_idx):
@@ -247,21 +249,21 @@ class Discriminator(nn.Module):
         self.chord_embedding = nn.Embedding(num_embeddings=25, embedding_dim=12)
 
         # Convolutional layers
-        self.first_conv = nn.Conv2d(in_channels=1, out_channels=14, kernel_size=(128, 2), stride=(1, 2)) # Separated by the other for the feature matching technique
+        self.first_conv = nn.Conv2d(in_channels=1, out_channels=32, kernel_size=(128, 2), stride=(1, 2)) # Separated by the other for the feature matching technique
         self.conv_layers = nn.Sequential(
-            nn.LeakyReLU(),
-            nn.Conv2d(in_channels=14, out_channels=77, kernel_size=(1, 4), stride=(1, 2)),
-            nn.BatchNorm2d(77),
-            nn.LeakyReLU()
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=(1, 4), stride=(1, 2)),
+            nn.InstanceNorm2d(64),
+            nn.LeakyReLU(0.2, inplace=True)
         )
         # Flatten layer
         self.flatten = nn.Flatten()
         # Feedforward layers
         self.ff_layers = nn.Sequential(
-            nn.Linear(in_features=77*3 + 12, out_features=1024), # 12 more for the chords
-            nn.BatchNorm1d(1024),
-            nn.LeakyReLU(),
-            nn.Linear(in_features=1024, out_features=1),
+            nn.Linear(in_features=64*3 + 12, out_features=512), # 12 more for the chords
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Dropout(0.3),
+            nn.Linear(in_features=512, out_features=1),
             nn.Sigmoid()
         )
 
@@ -290,7 +292,7 @@ class PianoGAN(BaseModel):
             noise_dim: Dimension of the input noise vector for the generator.
             learning_rate: Learning rate for both generator and discriminator optimizers.
         """
-        super().__init__(criterion=nn.BCEWithLogitsLoss(), learning_rate=learning_rate)
+        super().__init__(criterion=nn.BCELoss(), learning_rate=learning_rate)
         
         self.save_hyperparameters()
         self.noise_dim = noise_dim
@@ -339,6 +341,11 @@ class PianoGAN(BaseModel):
         # Generazione fake (senza aggiornare gradienti G per ora)
         generated_bars = self.generator(noise, prev_bars, chord_idx)
 
+        # Label Smoothing: usiamo 0.9 invece di 1.0 per i target reali. 
+        # Aiuta a stabilizzare l'apprendimento delle dinamiche (velocity).
+        real_labels = torch.full((batch_size, 1), 0.9, device=self.device)
+        fake_labels = torch.zeros((batch_size, 1), device=self.device)
+
         # Forward pass D su real
         real_output, _ = self.discriminator(curr_bars, chord_idx)
         
@@ -348,9 +355,9 @@ class PianoGAN(BaseModel):
         # Calcolo Loss Discriminator (replicando `discriminator_loss` di test.py)
         # test.py usa BCEWithLogitsLoss.
         # real targets = 1, fake targets = 0
-        real_loss = self.criterion(real_output, torch.ones_like(real_output))
-        fake_loss = self.criterion(fake_output_detached, torch.zeros_like(fake_output_detached))
-        d_loss = real_loss + fake_loss
+        real_loss = self.criterion(real_output, real_labels)
+        fake_loss = self.criterion(fake_output_detached, fake_labels)
+        d_loss = (real_loss + fake_loss) / 2
 
         # Step di ottimizzazione Discriminator
         opt_d.zero_grad()
@@ -360,7 +367,7 @@ class PianoGAN(BaseModel):
         # ---------------------
         # 2. Train Generator
         # ---------------------
-        
+        valid_labels = torch.ones((batch_size, 1), device=self.device)
         # Forward pass D su fake (questa volta serve il gradiente per G)
         fake_output, _ = self.discriminator(generated_bars, chord_idx)
         

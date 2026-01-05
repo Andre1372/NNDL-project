@@ -208,8 +208,7 @@ class MidiPreprocessor:
         piano_roll = instr.get_piano_roll(fs=fs, times=time_segment)
         
         # Binarize: Any velocity > 0 is treated as Note On (1)
-        piano_roll[piano_roll > 0] = 1
-        
+        piano_roll = piano_roll.astype(np.float32) / 127.0        
         # Clip pitch range
         piano_roll[:self.note_start, :] = 0
         piano_roll[self.note_end:, :] = 0
@@ -221,8 +220,8 @@ class MidiPreprocessor:
         # Check dimensions
         if piano_roll.shape != (PITCH_DIM, SAMPLES_PER_SEGMENT): return False
 
-        # Check sparsity (Minimum number of notes)
-        if np.sum(piano_roll) < self.min_notes: return False
+        # Consideriamo una nota "attiva" se la velocity > 0
+        active_notes_mask = piano_roll > 0
 
         # Check polyphony (Avoid monophonic tracks)
         notes_per_step = np.sum(piano_roll, axis=0)
@@ -370,7 +369,7 @@ def create_mmap_dataset(source_dir: Path, output_prefix: str):
 
     # 1. Create memmap placeholders
     # Piano: (Num_Segments, 128 pitch, 128 time)
-    fp_piano = np.memmap(piano_out, dtype='uint8', mode='w+', shape=(num_files, PITCH_DIM, SAMPLES_PER_SEGMENT))
+    fp_piano = np.memmap(piano_out, dtype='float32', mode='w+', shape=(num_files, PITCH_DIM, SAMPLES_PER_SEGMENT))
     # Chords: (Num_Segments, 8 bars) - stores integer indices 0-24
     fp_chords = np.memmap(chords_out, dtype='uint8', mode='w+', shape=(num_files, BARS_PER_SEGMENT))
 
@@ -382,7 +381,7 @@ def create_mmap_dataset(source_dir: Path, output_prefix: str):
                 with np.load(file_path, allow_pickle=True) as data:
                     # Piano Roll (saved as sparse csr inside the npz)
                     sparse_matrix = data['piano_roll'].item() 
-                    fp_piano[i] = sparse_matrix.todense().astype('uint8')
+                    fp_piano[i] = sparse_matrix.todense().astype('float32')
                     
                     # Chords (saved as dense array)
                     fp_chords[i] = data['chords'].astype('uint8')
@@ -390,7 +389,7 @@ def create_mmap_dataset(source_dir: Path, output_prefix: str):
             except Exception as e:
                 print(f"Error processing {file_path}: {e}")
                 # Fill with zeros/silence on error to keep alignment
-                fp_piano[i] = np.zeros((PITCH_DIM, SAMPLES_PER_SEGMENT), dtype='uint8')
+                fp_piano[i] = np.zeros((PITCH_DIM, SAMPLES_PER_SEGMENT), dtype='float32')
                 fp_chords[i] = np.full((BARS_PER_SEGMENT,), 24, dtype='uint8') # 24 = Silence code
         
         # Flush changes to disk
