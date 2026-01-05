@@ -427,7 +427,7 @@ class PianoMmapDataset(Dataset):
         chords_path = f"{mmap_prefix}_chords.dat"
         
         # Open in read-only mode to get shapes
-        self.piano_data = np.memmap(piano_path, dtype='uint8', mode='r')
+        self.piano_data = np.memmap(piano_path, dtype='float32', mode='r')
         # Reshape logic: Total bytes / bytes_per_sample (128*128)
         num_segments = self.piano_data.shape[0] // (PITCH_DIM * SAMPLES_PER_SEGMENT)
         self.piano_data = self.piano_data.reshape((num_segments, PITCH_DIM, SAMPLES_PER_SEGMENT))
