@@ -11,7 +11,8 @@ lightning_logs/*
 saved_models/*
 data/maestro-v3.0.0/*
 data/processed_npz/*
-
+lightning_logs/*
+notebooks/lightning_logs/*
 # Keep empty folders
 !.gitkeep
 !data/maestro-v3.0.0/.gitkeep
