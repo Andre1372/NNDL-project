@@ -307,7 +307,7 @@ class MidiPreprocessor:
                         # --- ### MODIFICA: SALVATAGGIO COMPRESSO ---
                         # Invece di sparse.save_npz, usiamo np.savez_compressed
                         # per salvare sia il piano roll (come sparse) che gli accordi.
-                        sparse_matrix = sparse.csr_matrix(piano_roll.astype(np.uint8))
+                        sparse_matrix = sparse.csr_matrix(piano_roll.astype(np.float32))
                         
                         np.savez_compressed(
                             save_path, 
