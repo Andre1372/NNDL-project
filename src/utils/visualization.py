@@ -8,22 +8,23 @@ import pretty_midi
 # For numerical operations
 import numpy as np
 
-def display_prettymidi(pm: pretty_midi.PrettyMIDI, fs: int, pitch_range = (0,127), title="PrettyMIDI display"):
+def display_prettymidi(pm: pretty_midi.PrettyMIDI, fs=8, title="PrettyMIDI display"):
     """
     Display the piano roll of a PrettyMIDI object.
     
     Args:
         pm: A PrettyMIDI object
         fs: Sampling frequency (frames per second)
-        pitch_range: Tuple (min_pitch, max_pitch) to display specific pitch range.
         title: Title of the plot
     """
     plt.figure(figsize=(14, 5))
 
-    pianoroll = pm.get_piano_roll(fs=fs)[pitch_range[0]:pitch_range[1], :]
+    pianoroll = pm.get_piano_roll(fs=fs)
 
-    if pianoroll.size == 0: # Handle empty pianoroll case
-        pianoroll = np.zeros((pitch_range[1] - pitch_range[0], 16)) # Default to 16 time steps
+    if pianoroll.size == 0 or pianoroll.sum() == 0: # Handle empty/silent pianoroll case
+        # Ensure at least 1 frame to avoid librosa crash
+        n_frames = max(1, int(pm.get_end_time() * fs))
+        pianoroll = np.zeros((128, n_frames))
 
     # Visualization with librosa
     librosa.display.specshow(
@@ -31,8 +32,7 @@ def display_prettymidi(pm: pretty_midi.PrettyMIDI, fs: int, pitch_range = (0,127
         sr=fs,           
         hop_length=1,    
         x_axis='time', 
-        y_axis='cqt_note',
-        fmin=pretty_midi.note_number_to_hz(pitch_range[0])
+        y_axis='cqt_note'
     )
 
     plt.title(title)

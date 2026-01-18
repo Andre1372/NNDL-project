@@ -484,4 +484,3 @@ class PianoMmapDataset(Dataset):
             prev_tensor = self.transform(prev_tensor)
 
         return prev_tensor, curr_tensor, chord_tensor
-        
