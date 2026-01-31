@@ -5,6 +5,7 @@ data/*.txt
 
 # Environment
 venv_deep/
+venv_deep_m1_goat/
 __pycache__/
 checkpoints/*
 lightning_logs/*
