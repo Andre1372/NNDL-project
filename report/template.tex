@@ -112,12 +112,13 @@
 \maketitle
 
 \begin{abstract}
-Social distancing and temperature screening have been widely employed to counteract the COVID-19 pandemic, sparking great interest from academia, industry and public administrations worldwide. 
-While most solutions have dealt with these aspects separately, their combination would greatly benefit the continuous monitoring of public spaces and help trigger effective countermeasures.
-This work presents milliTRACE-IR, a joint mmWave radar and infrared imaging sensing system performing unobtrusive and privacy preserving human body temperature screening and contact tracing in indoor spaces. milliTRACE-IR combines, via a robust sensor fusion approach, mmWave radars and infrared thermal cameras. 
-It achieves fully automated measurement of distancing and body temperature, by jointly tracking the subjects's faces in the thermal camera image plane and the human motion in the radar reference system. 
-Moreover, milliTRACE-IR performs contact tracing: a person with high body temperature is reliably detected by the thermal camera sensor and subsequently traced across a large indoor area in a non-invasive way by the radars. When entering a new room, a subject is re-identified among several other individuals by computing gait-related features from the radar reflections through a deep neural network and using a weighted extreme learning machine as the final re-identification tool.
-Experimental results, obtained from a real implementation of milliTRACE-IR, demonstrate decimeter-level accuracy in distance/trajectory estimation, inter-personal distance estimation (effective for subjects getting as close as $\boldsymbol{0.2}$~m), and accurate temperature monitoring (max. errors of $\boldsymbol{0.5}~^{\circ}$C). Furthermore, milliTRACE-IR provides contact tracing through highly accurate ($\boldsymbol{95\%}$) person re-identification, in less than $\boldsymbol{20}$ seconds.\\ 
+In the field of generative AI, the task of music generation is heavily conditioned by the need of training a network that not only provides notes, but is able to produce pieces of music made of a coherent sequence of notes, and may be good for the human ear.
+The network we developed is a General Adversarial Network (GAN) that is modified by including a Contitioner network inside the Generator (CGAN) in order to help it use past previously generated bars to build more audible sequences of notes and chords.
+In the generation phase, the network is forced to use previously generated bars to define the new ones.
+In addition, we included a Gated Recurrent Unit (GRU) to maintain an hidden state that, combined with the features extracted by the Conditioner, is able to maintain a theme of the piece of music that is being generated, which is itself used at the beginning of the generation process, in order to force the generation of coherent melodies.
+
+The result are short pieces of piano music, composed of melody and chords, that tend to as more realistic.
+Even if the music generation is limited to short and piano music, improvements on this architecture could lead to the generation of more complex and realistic compositions\\ 
 
 \MR{This is an example abstract from a paper we wrote a couple of years ago. I would say an abstract should not be longer than $250$ words. Here, you should briefly state: 
 \begin{enumerate}
