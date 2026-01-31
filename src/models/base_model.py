@@ -154,6 +154,9 @@ class Generator(nn.Module):
             nn.BatchNorm1d(num_features=512),
             nn.LeakyReLU(0.2),
         )
+        # Aggiungiamo una cella GRU per la memoria del tema
+        self.gru = nn.GRUCell(input_size=512, hidden_size=512)
+        
         # Reshape layer (512 x 1 -> 256 x 1 x 2)
         self.reshape = nn.Unflatten(dim=1, unflattened_size=(256, 1, 2))
         # Transposed convolutional layers
@@ -200,7 +203,7 @@ class Generator(nn.Module):
             nn.LeakyReLU(0.2)
         )
 
-    def forward(self, z, condition_matrix, chord_idx):
+    def forward(self, z, condition_matrix, chord_idx, hidden_state=None):
         chord_vector = self.chord_embedding(chord_idx)
         # Conditioner process condition_matrix
         condition_step1 = self.conv_1(condition_matrix)
@@ -208,10 +211,24 @@ class Generator(nn.Module):
         condition_step3 = self.conv_3(condition_step2)
         condition_step4 = self.conv_4(condition_step3)
 
+        b = z.size(0)
+        gru_input = condition_step4.view(b, -1)
+        # 2. Aggiornamento del TEMA (Il cuore della melodia)
+        if hidden_state is None:
+            hidden_state = torch.zeros(b, 512).to(z.device)
+        
+        new_hidden_state = self.gru(gru_input, hidden_state)
         # Generator process noise
         linear_output = self.ff_nets(z)
         reshaped_output = self.reshape(linear_output)
 
+        theme_projection = new_hidden_state
+
+        linear_output = self.ff_nets(z)
+
+        combined_features = linear_output + theme_projection
+
+        reshaped_output = self.reshape(combined_features)
         # 3. Helper function per concatenare gli accordi
         # Espande il vettore (B, 12) per matchare le dimensioni H, W del layer corrente
         def concat_chords(feature_map, cond_map, chord_vec):
@@ -239,8 +256,10 @@ class Generator(nn.Module):
         # Step 4: Out3 + Cond1 + Chords
         merged4 = concat_chords(output_step3, condition_step1, chord_vector)         # Canali: 524
         output_step4 = self.transp_conv_4(merged4)                      # Output: (B, 1, 128, 16)
-        
-        return output_step4
+    
+
+
+        return output_step4, new_hidden_state
     
 
 class Discriminator(nn.Module):
@@ -251,6 +270,7 @@ class Discriminator(nn.Module):
         # Convolutional layers
         self.first_conv = nn.Conv2d(in_channels=1, out_channels=32, kernel_size=(128, 2), stride=(1, 2)) # Separated by the other for the feature matching technique
         self.conv_layers = nn.Sequential(
+            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=(128,2), stride=(1, 2)),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=(1, 4), stride=(1, 2)),
             nn.InstanceNorm2d(64),
@@ -267,7 +287,7 @@ class Discriminator(nn.Module):
             nn.Sigmoid()
         )
 
-    def forward(self, x, chord_idx):
+    def forward(self, x_curr, x_prev, chord_idx):
         """
         Args:
             x: Piano roll corrente (B, 1, 128, 16)
@@ -275,13 +295,18 @@ class Discriminator(nn.Module):
         """
         chord_vector = self.chord_embedding(chord_idx)
 
-        f = self.first_conv(x)
-        out_conv = self.conv_layers(f)
-        out_flat = self.flatten(out_conv)
+        feat_curr = self.conv_layers(x_curr)
+        feat_prev = self.conv_layers(x_prev)
 
-        combined = torch.cat((out_flat, chord_vector), dim=1) # Shape: (B, 231 + 12)
+        int_feat = feat_curr #eventualmente per feature matching
+
+        flat_curr = self.flatten(feat_curr)
+        flat_prev = self.flatten(feat_prev)
+
+        combined = torch.cat((flat_curr, flat_prev, chord_vector), dim=1) # Shape: (B, 231 + 12)
         output = self.ff_layers(combined)
-        return output, f
+
+        return output, int_feat
     
 
 class PianoGAN(BaseModel):
@@ -339,7 +364,7 @@ class PianoGAN(BaseModel):
         # ---------------------
         
         # Generazione fake (senza aggiornare gradienti G per ora)
-        generated_bars = self.generator(noise, prev_bars, chord_idx)
+        generated_bars, _ = self.generator(noise, prev_bars, chord_idx)
 
         # Label Smoothing: usiamo 0.9 invece di 1.0 per i target reali. 
         # Aiuta a stabilizzare l'apprendimento delle dinamiche (velocity).
@@ -347,10 +372,10 @@ class PianoGAN(BaseModel):
         fake_labels = torch.zeros((batch_size, 1), device=self.device)
 
         # Forward pass D su real
-        real_output, _ = self.discriminator(curr_bars, chord_idx)
+        real_output, _ = self.discriminator(curr_bars, prev_bars, chord_idx)
         
         # Forward pass D su fake (detach per non propagare su G)
-        fake_output_detached, _ = self.discriminator(generated_bars.detach(), chord_idx)
+        fake_output_detached, _ = self.discriminator(generated_bars.detach(), prev_bars, chord_idx)
 
         # Calcolo Loss Discriminator (replicando `discriminator_loss` di test.py)
         # test.py usa BCEWithLogitsLoss.
@@ -369,7 +394,7 @@ class PianoGAN(BaseModel):
         # ---------------------
         valid_labels = torch.ones((batch_size, 1), device=self.device)
         # Forward pass D su fake (questa volta serve il gradiente per G)
-        fake_output, _ = self.discriminator(generated_bars, chord_idx)
+        fake_output, _ = self.discriminator(generated_bars, prev_bars, chord_idx)
         
         # Calcolo Loss Generator (replicando `generator_loss` di test.py)
         # Il generatore vuole ingannare il discriminatore, quindi target = 1
