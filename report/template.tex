@@ -96,9 +96,8 @@
 
 \title{NNDL project report template}
 
-\author{Jacopo Pegoraro$^\dag$, Michele Rossi$^\dag$,
-\thanks{$^\dag$Department of Information Engineering, University of Padova, \newline email: \texttt{\{name.surname\}@unipd.it}}
-\thanks{Special thanks / acknowledgement go here.}
+\author{Edoardo Furlan$^\dag$, Andrea Marigo$^\dag$, Francesca Zorzi$^\dag$
+\thanks{$^\dag$Department of Information Engineering, University of Padova, \newline email: \texttt{\{edoardo.furlan.3, andrea.marigo.3, francesca.zorzi.3\}@studenti.unipd.it}}
 } 
 
 \IEEEoverridecommandlockouts
@@ -113,12 +112,13 @@
 
 \begin{abstract}
 In the field of generative AI, the task of music generation is heavily conditioned by the need of training a network that not only provides notes, but is able to produce pieces of music made of a coherent sequence of notes, and may be good for the human ear.
-The network we developed is a General Adversarial Network (GAN) that is modified by including a Contitioner network inside the Generator (CGAN) in order to help it use past previously generated bars to build more audible sequences of notes and chords.
-In the generation phase, the network is forced to use previously generated bars to define the new ones.
-In addition, we included a Gated Recurrent Unit (GRU) to maintain an hidden state that, combined with the features extracted by the Conditioner, is able to maintain a theme of the piece of music that is being generated, which is itself used at the beginning of the generation process, in order to force the generation of coherent melodies.
+The network we developed is a Generative Adversarial Network (GAN) inspired by MidiNet (qua va aggiunta la reference) that is modified by including a Contitioner network inside the Generator (CGAN) and a Gated Recurrent Unit (GRU).
+The Conditioner uses features extracted from previously generated bars and feeds them to the Generator at each layer, providing a guide to maintain musical context.
+The Recurrent Unit is able to maintain an hidden state that, combined with the features extracted by the Conditioner, is able to maintain a theme of the piece of music that is being generated.
+This theme is combined with the Conditioner's features at the beginning of the generation process, forcing the network to maintain coherent melodies.
 
-The result are short pieces of piano music, composed of melody and chords, that tend to as more realistic.
-Even if the music generation is limited to short and piano music, improvements on this architecture could lead to the generation of more complex and realistic compositions\\ 
+The result is an integration of recurrent memory and convolutional layers that leads to improved thematic coherence.
+While limited to short piano music, improvements on this architecture could lead to the generation of more complex and multi-instrumental compositions\\ 
 
 \MR{This is an example abstract from a paper we wrote a couple of years ago. I would say an abstract should not be longer than $250$ words. Here, you should briefly state: 
 \begin{enumerate}

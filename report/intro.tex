@@ -4,7 +4,9 @@
 \label{sec:introduction}
 
 \begin{remark}
-\textbf{Paper contribution:} First and foremost decide on what precisely is the contribution of your paper over the state of the art. If you think you have several contributions, {\it focus on the most important one}. It may be that you can add one or two contributions as side topics, but in general you should focus on the most important one so as {\it to keep your paper focused}. As a side note: If you think you have several contributions for a single paper, you should probably invest in researching state of the art and related work more thoroughly. When you know your contribution, think of a good title.
+\textbf{Paper contribution:} In music generation, coherence is the main objective. That's why a simple RNN architecture seems to be the mos tappropriate solution, as it's structure aims at learning seeuqnces in order to predict the next values. Howevere, MidiNet showed that convolutional GANs can overcome the issue
+                            of learning time related forgetting by using spatial conditioning. The network that we propose tries to combine these two point of view, by adding to the generation process a recurrent unit that will help in learning long-term relations. Additionally, we used a dataset that takes into account velocity (intensity of the notes). This means that
+                            the patterns that the network has to learn become much more complex and may not be captured if the network is not suitably structured to handle the new relations between notes.
 \end{remark}
 
 \begin{remark} 
