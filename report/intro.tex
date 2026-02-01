@@ -4,13 +4,28 @@
 \label{sec:introduction}
 
 \begin{remark}
-\textbf{Paper contribution:} In music generation, coherence is the main objective. That's why a simple RNN architecture seems to be the mos tappropriate solution, as it's structure aims at learning seeuqnces in order to predict the next values. Howevere, MidiNet showed that convolutional GANs can overcome the issue
-                            of learning time related forgetting by using spatial conditioning. The network that we propose tries to combine these two point of view, by adding to the generation process a recurrent unit that will help in learning long-term relations. Additionally, we used a dataset that takes into account velocity (intensity of the notes). This means that
-                            the patterns that the network has to learn become much more complex and may not be captured if the network is not suitably structured to handle the new relations between notes.
+\textbf{Short Intro:} The task of generating music is a frontier in Artificial Intelligence, since it poses the challenge of training a network to be creative, but with the rigid constraints imposed by music theory.
+While some architectures are already capable of generating technically corect sequences, capturing the key points of realistic, human-like compsitions, remains an interesting topic. This is a praticularly interesting problem
+if seen in the scenario of creating assistive tools for composers: both experienced and non experienced ones would benefit by these tools in order to improve creativity and exploration of genres.
+What we propose is a hybrid architecture that aims no only to model the placement of notes, but also their intensity and the evolution of the themaic they represent.
 \end{remark}
 
-\begin{remark} 
-\textbf{Title:} Find a short and precise title for you paper exactly matching the content. It's worth investing time into this matter, as {\it the title will be that part of the paper by which it will be referenced} (in case it gets published).
+\begin{remark}
+\textbf{Paper contribution:} In music generation, coherence is the main objective. That's why a simple RNN architecture seems to be the most tappropriate solution, as it's structure aims at learning sequences in order to predict the next values. However, MidiNet showed that convolutional GANs can overcome the issue
+                            of learning time related forgetting by using spatial conditioning, while achieving better performances regarding creativity, since the outputs directly come from random noise, thus allowing the network to generate new music from scratch. The network that we propose tries to combine these two point of view, by adding to the generation process a recurrent unit that will help in learning long-term relations. Additionally, we used a dataset that takes into account velocity (intensity of the notes). This means that
+                            the patterns that the network has to learn become much more complex and may not be captured if the network is not suitably structured to handle the new relations between notes.
+                            Another relevant change with respect to the original MidiNet archtecture lies in the Discriminator network. In its input we propose the use of both the current and the previous bars from the dataset, in order to include in the discrimination process a similar approach to the one regarding the conditioner in the generator.
+                            This changes aim to improve the quality of the game played by Generator and Discriminator, which should eventually lead to a more realistic result.
+                        \end{remark}
+
+\begin{remark}
+    \textbf{Summary of contributions:}
+        \begin{itemize}
+            \item Hybrid Recurrent-Convolutional Network: We extended the convolutional MidiNet with a Gated Recurrent unit within the generator
+            \item Multi-Dimensional Conditioning: The model includes a dual-conditioning mechanism, which combines local features via the Discriminator and global thematic via the GRU
+            \item Modelling Velocity: Our network is built to include note only note placement, but also to choose their intensity. The goal is to improve the realness of the produced pieces.
+            \item Transition-aware Discriminator: We propose an improved adversarial game with an enhanced Discriminator that evaluates subsequent bars and chord embeddings.
+        \end{itemize}
 \end{remark}
 
 \begin{remark}
@@ -27,8 +42,8 @@ where \texttt{template.tex} is the name of the root Latex file. This command tel
 
 \noindent \textbf{Recommended structure for the intro:} you may use the following structure. 
 \begin{itemize}
-\item \textbf{General (short) intro:} One paragraph to introduce your work, describing the scenario {\it at large}, its relevance, to prepare the reader to what follows and convince her/him that the paper focuses on an important setup/problem. Please keep this part short (I usually do five to eight lines), as this part is rather standard, \textbf{but} at the same time it has to be there. 
-\item \textbf{Put the problem into perspective:} A second paragraph where you immediately delve into the specific problem that you are tackling, starting to detail your contribution. Here, you describe the importance of such problem, providing examples (citing papers from the literature, possibly recent ones) of previous solutions attempts, and of why these failed {\it to provide a complete answer}. This second paragraph should not be too long, as otherwise the reader will get bored and will abandon your paper... It should be concisely written, something like 5 to 10 lines.
+% \item \textbf{General (short) intro:} One paragraph to introduce your work, describing the scenario {\it at large}, its relevance, to prepare the reader to what follows and convince her/him that the paper focuses on an important setup/problem. Please keep this part short (I usually do five to eight lines), as this part is rather standard, \textbf{but} at the same time it has to be there. 
+% \item \textbf{Put the problem into perspective:} A second paragraph where you immediately delve into the specific problem that you are tackling, starting to detail your contribution. Here, you describe the importance of such problem, providing examples (citing papers from the literature, possibly recent ones) of previous solutions attempts, and of why these failed {\it to provide a complete answer}. This second paragraph should not be too long, as otherwise the reader will get bored and will abandon your paper... It should be concisely written, something like 5 to 10 lines.
 \item \textbf{Present the paper contribution:} A third paragraph were you state what you do in the paper, this should also be concisely written. A good rule of thumb is to make it max 10/15 lines. Here, you should state up front:
 \begin{enumerate}
 \item \textbf{problem}: the problem at stake, 
