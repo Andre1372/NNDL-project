@@ -291,9 +291,22 @@ class PianoGAN(BaseModel):
         # Non ritorniamo loss tensor perché siamo in manual_optimization
         return 
 
-    # Implementazione dei metodi astratti richiesti da BaseModel
     def validation_step(self, batch, batch_idx):
-        pass # Implementare se necessario
+        prev_bars, curr_bars, chord_idx = batch
+        batch_size = prev_bars.size(0)
+        
+        # Genera fake
+        noise = torch.randn(batch_size, self.noise_dim, device=self.device)
+        generated_bars, _ = self.generator(noise, prev_bars, chord_idx)
+        
+        # Valuta col discriminatore (senza aggiornare gradienti)
+        fake_output, _ = self.discriminator(generated_bars, prev_bars, chord_idx)
+        
+        # Calcola loss (quanto bene il generatore inganna il discriminatore su dati mai visti)
+        val_g_loss = self.criterion(fake_output, torch.ones_like(fake_output))
+        
+        # Logging
+        self.log("val_g_loss", val_g_loss, prog_bar=True, synchronization_dist=True)
         
     def test_step(self, batch, batch_idx):
         pass # Implementare se necessario
