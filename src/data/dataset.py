@@ -71,34 +71,6 @@ def identify_chord(piano_roll_bar: np.ndarray) -> int:
             best_chord = root + 12 # 12-23
 
     return best_chord
-
-
-class PolyDataset(Dataset):
-
-    def __init__(self, inputs: np.ndarray, targets: np.ndarray, transform: Optional[Callable] = None):
-        """
-        Initialize the dataset.
-        
-        Args:
-            inputs: Input features
-            targets: Target values
-            transform: Optional transform to apply to inputs
-        """
-        self.data = [(x, y) for x, y in zip(inputs, targets)]
-        self.transform = transform
-
-    def __len__(self) -> int:
-        """ Return the number of samples in the dataset. """
-        return len(self.data)
-
-    def __getitem__(self, idx: int):
-        """ Get a sample by index. """
-        sample = self.data[idx]
-
-        if self.transform:
-            sample = self.transform(sample)
-
-        return sample
     
 
 class MidiPreprocessor:
@@ -259,10 +231,7 @@ class MidiPreprocessor:
 
         except Exception as e:
             return f"ERROR: {file_name}: {str(e)}"
-        
-# =================================================================================
-# PART 3: MEMORY MAPPED DATASET & UTILS (Add this to the end of dataset.py)
-# =================================================================================
+
 
 def create_mmap_dataset(source_dir: Path, output_prefix: str):
     """ 
