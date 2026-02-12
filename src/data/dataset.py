@@ -101,80 +101,6 @@ class PolyDataset(Dataset):
         return sample
     
 
-class PianoDataset(Dataset):
-
-    def __init__(self, data_dir: Path, split_indices: Optional[List[int]] = None, transform: Optional[Callable] = None):
-        """
-        Dataset that loads piano roll segments from a directory of .npz files.
-        ALL bars are loaded into memory during initialization.
-        
-        Args:
-            data_dir: Path to the directory containing .npz files.
-            split_indices: Optional list/array of indices to select specific files from the sorted directory listing.
-            transform: Optional transformations to apply to the tensors.
-        """
-        self.data_dir = data_dir
-        self.transform = transform
-        
-        # Load all file paths and sort them to ensure consistent ordering
-        all_files = sorted(list(self.data_dir.glob("*.npz")))
-        if len(all_files) == 0:
-            raise ValueError("No .npz files found.")
-        
-        # Filter files if split_indices are provided
-        if split_indices is not None:
-            self.file_paths = [all_files[idx] for idx in split_indices]
-        else:
-            self.file_paths = all_files
-            
-        if not self.file_paths:
-            print("Warning: PianoDataset initialized with empty file list.")
-
-        # Pre-load all data
-        self.data = []
-        for file_path in tqdm(self.file_paths, desc="Loading PianoDataset"):
-            try:
-                sparse_matrix = sparse.load_npz(file_path)
-                full_segment = sparse_matrix.toarray().astype(np.float32) # Shape: (128, 128)
-                
-                # Verify shape
-                if full_segment.shape != (PITCH_DIM, SAMPLES_PER_SEGMENT):
-                    print(f"Skipping {file_path}: Invalid shape {full_segment.shape}")
-                    continue
-
-                # Split directly into bars and store
-                self.data.extend([full_segment[:, b*SAMPLES_PER_BAR : (b + 1)*SAMPLES_PER_BAR] for b in range(BARS_PER_SEGMENT)])
-                    
-            except Exception as e:
-                print(f"Error loading {file_path}: {e}")
-
-    def __len__(self) -> int:
-        """Return the total number of bars in the dataset."""
-        return len(self.data)
-
-    def __getitem__(self, idx: int):
-        """Get a sample (previous bar, current bar) by index."""
-        current_bar = self.data[idx]
-        
-        # Determine if this bar is the start of a segment (every 8th bar)
-        is_first_bar = (idx % BARS_PER_SEGMENT == 0)
-
-        if is_first_bar:
-            prev_bar = np.zeros((PITCH_DIM, SAMPLES_PER_BAR), dtype=np.float32)
-        else:
-            prev_bar = self.data[idx - 1]
-
-        # Convert to tensors, unsqueeze(0) adds the channel dimension (1, 128, 16)
-        curr_tensor = torch.from_numpy(current_bar).unsqueeze(0)
-        prev_tensor = torch.from_numpy(prev_bar).unsqueeze(0)
-        
-        if self.transform:
-            curr_tensor = self.transform(curr_tensor)
-            prev_tensor = self.transform(prev_tensor)
-
-        return prev_tensor, curr_tensor
-
-
 class MidiPreprocessor:
     """
     Preprocessor for MIDI files. 
@@ -182,7 +108,7 @@ class MidiPreprocessor:
     Results are stored in-memory in `self.bars` and metadata is updated in the provided DataFrame.
     """
 
-    def __init__(self, output_dir: Path, select_instruments: List[int], note_start: int, note_end: int, min_notes: int = 5, min_polyphony: float = 1.0):
+    def __init__(self, output_dir: Path, select_instruments: List[int], note_start: int, note_end: int, min_polyphony: float = 1.0):
         """
         Initialize the MIDI preprocessor.
 
@@ -191,7 +117,6 @@ class MidiPreprocessor:
             select_instruments: List of MIDI program numbers to select.
             note_start: The starting MIDI note number (inclusive).
             note_end: The ending MIDI note number (exclusive).
-            min_notes: Minimum number of notes required in a segment to be kept.
             min_polyphony: Minimum average polyphony required in a segment to be kept.
         """
         self.output_dir = Path(output_dir)
@@ -199,7 +124,6 @@ class MidiPreprocessor:
         self.select_instruments = select_instruments
         self.note_start = note_start
         self.note_end = note_end
-        self.min_notes = min_notes
         self.min_polyphony = min_polyphony
 
     def _process_piano_roll(self, instr: pretty_midi.Instrument, fs: float, time_segment: np.ndarray) -> np.ndarray:
@@ -207,8 +131,9 @@ class MidiPreprocessor:
         # Get piano roll (shape: pitch x time)
         piano_roll = instr.get_piano_roll(fs=fs, times=time_segment)
         
-        # Binarize: Any velocity > 0 is treated as Note On (1)
-        piano_roll = piano_roll.astype(np.float32) / 127.0        
+        # Normalize
+        piano_roll = piano_roll.astype(np.float32) / 127.0   
+        
         # Clip pitch range
         piano_roll[:self.note_start, :] = 0
         piano_roll[self.note_end:, :] = 0
@@ -216,7 +141,7 @@ class MidiPreprocessor:
         return piano_roll
 
     def _is_segment_valid(self, piano_roll: np.ndarray) -> bool:
-        """Checks if a segment is valid based on dimensions, note count, and polyphony."""
+        """Checks if a segment is valid based on dimensions and polyphony."""
         # Check dimensions
         if piano_roll.shape != (PITCH_DIM, SAMPLES_PER_SEGMENT): return False
 
@@ -287,10 +212,9 @@ class MidiPreprocessor:
                         # --- ### MODIFICA: ESTRAZIONE ACCORDI ---
                         # Dividiamo il segmento (128 steps) in 8 battute da 16 steps
                         segment_chords = []
-                        steps_per_bar = 16
-                        for b in range(8):
-                            b_start = b * steps_per_bar
-                            b_end = (b + 1) * steps_per_bar
+                        for b in range(BARS_PER_SEGMENT):
+                            b_start = b * SAMPLES_PER_BAR
+                            b_end = (b + 1) * SAMPLES_PER_BAR
                             # Estraiamo la porzione di matrice corrispondente alla battuta
                             bar_roll = piano_roll[:, b_start:b_end]
                             # Identifichiamo l'accordo
