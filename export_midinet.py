@@ -1,32 +1,28 @@
-
-# For model building
 import torch
 import torch.nn as nn
+import torch.onnx
 import pytorch_lightning as pl
+
+# =================================================================================
+# 1. DEFINIZIONE DELLE CLASSI (Codice fornito da te)
+# =================================================================================
 
 class BaseModel(pl.LightningModule):
     """
     Base model class for all neural network models in the project.
-    
-    This provides a common interface for model saving, loading, and summary.
     """
-    
     def __init__(self, criterion: nn.Module, learning_rate: float = 1e-3):
-        """ Initialize the base model. """
         super(BaseModel, self).__init__()
         self.learning_rate = learning_rate
         self.criterion = criterion
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
-        """ Configure optimizer for PyTorch Lightning. """
         raise NotImplementedError("Subclasses must implement configure_optimizers()")
     
     def get_num_parameters(self) -> int:
-        """ Get the total number of trainable parameters. """
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
     
     def summary(self):
-        """Print model summary."""
         print(f"\n{'='*80}")
         print(f"Model: {self.__class__.__name__}")
         print(f"{'='*80}")
@@ -186,129 +182,76 @@ class Discriminator(nn.Module):
 
 class PianoGAN(BaseModel):
     def __init__(self, noise_dim: int = 100, learning_rate: float = 0.0002, feature_matching_weight: float = 1.0):
-        """ 
-        Initialize the base model. 
-        Args:
-            noise_dim: Dimension of the input noise vector for the generator.
-            learning_rate: Learning rate for both generator and discriminator optimizers.
-            feature_matching_weight: Weight for the feature matching loss.
-        """
         super().__init__(criterion=nn.BCELoss(), learning_rate=learning_rate)
-        
         self.save_hyperparameters()
         self.noise_dim = noise_dim
         self.feature_matching_weight = feature_matching_weight
-        
-        # Sub-modules
         self.generator = Generator(input_size=noise_dim)
         self.discriminator = Discriminator()
-        
-        # Important: Disable automatic optimization to manage G and D separately
         self.automatic_optimization = False
 
     def forward(self, z: torch.Tensor, prev_bars: torch.Tensor, chord_idx: torch.Tensor) -> torch.Tensor:
-        """
-        Generate a new bar.
-        Args:
-            z: Noise vector
-            prev_bars: Conditioning matrix (previous bar)
-            chord_idx: Indices of the chords (0-24)
-        """
         return self.generator(z, prev_bars, chord_idx)
+    
+    # ... (Il resto dei metodi non serve per l'export ONNX, ma la classe è definita) ...
 
-    def configure_optimizers(self):
-        """ Define the two separate optimizers for Discriminator and Generator. """
+# =================================================================================
+# 2. LOGICA DI ESPORTAZIONE PER NETRON
+# =================================================================================
 
-        opt_d = torch.optim.Adam(self.discriminator.parameters(), lr=self.learning_rate, betas=(0.5, 0.999))
-        opt_g = torch.optim.Adam(self.generator.parameters(), lr=self.learning_rate, betas=(0.5, 0.999))
-        return [opt_d, opt_g], [] # standard Lightning format: (optimizers, schedulers)
+def export_midinet_complete():
+    print("🚀 Avvio procedura di esportazione per Netron...")
+    
+    # Parametri dimensionali (Basati su MidiNet standard e il tuo codice)
+    # Z_dim = 100 (default in PianoGAN)
+    # Prev_Bar = [Batch, 1, 128, 16] (128 note, 16 step temporali)
+    # Chord = Indice tra 0 e 24
+    
+    z_dim = 100
+    batch_size = 1
+    
+    # 1. Istanziamo il GENERATORE (è la parte interessante da visualizzare)
+    model = Generator(input_size=z_dim)
+    model.eval()
+    
+    # 2. Creiamo i Dummy Inputs (Dati finti della forma corretta)
+    dummy_z = torch.randn(batch_size, z_dim)
+    dummy_prev_bars = torch.randn(batch_size, 1, 128, 16) # [B, C, H, W]
+    dummy_chord_idx = torch.tensor([5]) # Un accordo a caso (es. indice 5)
+    dummy_hidden = torch.zeros(batch_size, 512) # Stato iniziale GRU
 
-    def training_step(self, batch, batch_idx):
-        opt_d, opt_g = self.optimizers()
-        prev_bars, curr_bars, chord_idx = batch
-        batch_size = prev_bars.size(0)
+    output_path = "midinet_complete_structure.onnx"
 
-        # Tools & Targets
-        real_label = torch.full((batch_size, 1), 0.9, device=self.device)
-        fake_label = torch.zeros((batch_size, 1), device=self.device)
-        valid_label = torch.ones((batch_size, 1), device=self.device)
+    print(f"📦 Esportazione in corso in: {output_path}")
+    print("   - Includerà: Embedding Accordi, GRU, Convoluzioni, Concatenazioni")
 
-        # =========================================================================
-        # 1. TRAIN DISCRIMINATOR
-        # =========================================================================
-        # Generate fake batch (gradients not needed for G here)
-        z = torch.randn(batch_size, self.noise_dim, device=self.device)
-        fake_bars, _ = self.generator(z, prev_bars, chord_idx)
+    try:
+        torch.onnx.export(
+            model,
+            # La tupla degli input deve seguire l'ordine di Generator.forward
+            # def forward(self, z, condition_matrix, chord_idx, hidden_state=None):
+            (dummy_z, dummy_prev_bars, dummy_chord_idx, dummy_hidden),
+            output_path,
+            export_params=True,        # Salva i pesi dentro il file
+            opset_version=11,          # Versione stabile
+            do_constant_folding=True,
+            input_names=['Input_Noise_Z', 'Input_Prev_Bar', 'Input_Chord_ID', 'Input_GRU_Hidden'],
+            output_names=['Output_PianoRoll', 'Output_Next_Hidden'],
+            dynamic_axes={
+                'Input_Noise_Z': {0: 'batch_size'},
+                'Input_Prev_Bar': {0: 'batch_size'},
+                'Input_Chord_ID': {0: 'batch_size'},
+                'Output_PianoRoll': {0: 'batch_size'}
+            }
+        )
+        print(f"✅ FILE CREATO CON SUCCESSO: {output_path}")
+        print("👉 Ora vai su https://netron.app e apri questo file.")
+        print("   Vedrai chiaramente i blocchi 'Concat' dove l'embedding dell'accordo entra nella rete.")
         
-        # Forward Pass: Real
-        real_pred, real_feats = self.discriminator(curr_bars, prev_bars, chord_idx)
-        d_loss_real = self.criterion(real_pred, real_label) # real_label = 0.9
+    except Exception as e:
+        print(f"❌ Errore critico durante l'export: {e}")
+        import traceback
+        traceback.print_exc()
 
-        # Forward Pass: Fake
-        fake_pred_det, _ = self.discriminator(fake_bars.detach(), prev_bars, chord_idx)
-        d_loss_fake = self.criterion(fake_pred_det, fake_label) # fake_label = 0
-
-        # Update D
-        d_loss = (d_loss_real + d_loss_fake) / 2
-        opt_d.zero_grad()
-        self.manual_backward(d_loss)
-        opt_d.step()
-
-        # Metrics: Accuracy
-        acc_real = (real_pred > 0.5).float().mean()
-        acc_fake = (fake_pred_det < 0.5).float().mean()
-        d_acc = (acc_real + acc_fake) / 2
-
-        # =========================================================================
-        # 2. TRAIN GENERATOR
-        # =========================================================================
-        # Reuse 'fake_bars' from above (preserving gradients for G)
-        
-        # Forward Pass D (on fake, keeping gradients for G)
-        fake_pred, fake_feats = self.discriminator(fake_bars, prev_bars, chord_idx)
-        
-        # A. Adversarial Loss (G tries to fool D)
-        g_loss_adv = self.criterion(fake_pred, valid_label) # valid_label = 1
-
-        # B. Feature Matching Loss (Stability)
-        mean_real_f = torch.mean(real_feats.detach(), dim=0)
-        mean_fake_f = torch.mean(fake_feats, dim=0)
-        g_loss_fm = torch.mean((mean_real_f - mean_fake_f) ** 2)
-
-        # Update G
-        g_loss = g_loss_adv + self.feature_matching_weight * g_loss_fm
-        
-        opt_g.zero_grad()
-        self.manual_backward(g_loss)
-        opt_g.step()
-
-        # =========================================================================
-        # 3. LOGGING
-        # =========================================================================
-        self.log_dict({
-            "d_loss": d_loss,
-            "d_accuracy": d_acc,
-            "g_loss": g_loss,
-            "g_adv": g_loss_adv,
-            "g_fm": g_loss_fm
-        }, prog_bar=True) 
-
-    def validation_step(self, batch, batch_idx):
-        prev_bars, curr_bars, chord_idx = batch
-        batch_size = prev_bars.size(0)
-        
-        # Genera fake
-        noise = torch.randn(batch_size, self.noise_dim, device=self.device)
-        generated_bars, _ = self.generator(noise, prev_bars, chord_idx)
-        
-        # Valuta col discriminatore (senza aggiornare gradienti)
-        fake_output, _ = self.discriminator(generated_bars, prev_bars, chord_idx)
-        
-        # Calcola loss (quanto bene il generatore inganna il discriminatore su dati mai visti)
-        val_g_loss = self.criterion(fake_output, torch.ones_like(fake_output))
-        
-        # Logging
-        self.log("val_g_loss", val_g_loss, prog_bar=True, sync_dist=True)
-        
-    def test_step(self, batch, batch_idx):
-        pass # Implementare se necessario
+if __name__ == "__main__":
+    export_midinet_complete()
