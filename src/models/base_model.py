@@ -18,9 +18,9 @@ class BaseModel(pl.LightningModule):
         self.criterion = criterion
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
-        """ Configure optimizer for PyTorch Lightning. """
-        raise NotImplementedError("Subclasses must implement configure_optimizers()")
-    
+
+        raise NotImplementedError("Subclasses must implement configure_optimizers() to return their optimizers.")
+
     def get_num_parameters(self) -> int:
         """ Get the total number of trainable parameters. """
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
@@ -116,7 +116,7 @@ class Generator(nn.Module):
         # 3. Process Noise & Project
         proj = self.project_process(z)
         # Combine with memory and reshape
-        base_features = self.reshape_layer(proj + new_hidden_state) 
+        base_features = self.reshape_layer(proj) # + new_hidden_state add to use gru
         
         # 4. Generator Upsampling Steps
         chord_vec = self.chord_embedding(chord_idx)
@@ -136,8 +136,10 @@ class Generator(nn.Module):
         # Step 4 (Final)
         merged_step4 = self._concat_chords(gen_step3, condition_step1, chord_vec)
         final_out = self.gen_layer4(merged_step4)
+        final_out = final_out*1.1 # Amplificazione per compensare la saturazione da Sigmoid
     
-        return final_out, new_hidden_state
+        final_out = torch.clamp(final_out, 0, 1)
+        return final_out, None
     
 
 class Discriminator(nn.Module):
@@ -159,24 +161,22 @@ class Discriminator(nn.Module):
         # Input features: 64 channels * 3 * 2 spatial + chord_dim
         self.flatten = nn.Flatten()
         self.classifier = nn.Sequential(
-            nn.Linear(64*6 + self.chord_dim, 512),
+            nn.Linear(64*3 + self.chord_dim, 512),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Dropout(0.3),
             nn.Linear(512, 1),
             nn.Sigmoid()
         )
 
-    def forward(self, x_curr, x_prev, chord_idx):
+    def forward(self, x, chord_idx):
         chord_vec = self.chord_embedding(chord_idx)
 
         # Extract features
-        feat_curr = self.conv_layers(x_curr)
-        feat_prev = self.conv_layers(x_prev)
+        feat_curr = self.conv_layers(x)
 
-        # Flatten & Concat
-        flat_curr = self.flatten(feat_curr)
-        flat_prev = self.flatten(feat_prev)
-        combined = torch.cat((flat_curr, flat_prev, chord_vec), dim=1)
+        out_flat = self.flatten(feat_curr)
+
+        combined = torch.cat((out_flat, chord_vec), dim=1) # Shape: (B, 231 + 12)
         
         # Classification
         validity = self.classifier(combined)
@@ -185,7 +185,7 @@ class Discriminator(nn.Module):
     
 
 class PianoGAN(BaseModel):
-    def __init__(self, noise_dim: int = 100, learning_rate: float = 0.0002, feature_matching_weight: float = 1.0):
+    def __init__(self, noise_dim: int = 100, learning_rate: float = 0.0002, feature_matching_weight: float = 5.0):
         """ 
         Initialize the base model. 
         Args:
@@ -218,9 +218,22 @@ class PianoGAN(BaseModel):
 
     def configure_optimizers(self):
         """ Define the two separate optimizers for Discriminator and Generator. """
+        # Learning Rate del Generatore (più alto per permettergli di rincorrere)
+        lr_g = 0.0004 
+        # Learning Rate del Discriminatore (più basso per frenarlo)
+        lr_d = 0.00005
 
-        opt_d = torch.optim.Adam(self.discriminator.parameters(), lr=self.learning_rate, betas=(0.5, 0.999))
-        opt_g = torch.optim.Adam(self.generator.parameters(), lr=self.learning_rate, betas=(0.5, 0.999))
+        opt_g = torch.optim.Adam(
+            self.generator.parameters(), 
+            lr=lr_g, 
+            betas=(0.5, 0.999) # Beta1 a 0.5 aiuta la stabilità nelle GAN
+        )
+        
+        opt_d = torch.optim.Adam(
+            self.discriminator.parameters(), 
+            lr=lr_d, 
+            betas=(0.5, 0.999)
+        )
         return [opt_d, opt_g], [] # standard Lightning format: (optimizers, schedulers)
 
     def training_step(self, batch, batch_idx):
@@ -228,54 +241,64 @@ class PianoGAN(BaseModel):
         prev_bars, curr_bars, chord_idx = batch
         batch_size = prev_bars.size(0)
 
-        # Tools & Targets
-        real_label = torch.full((batch_size, 1), 0.9, device=self.device)
+        # 1. Definizione Targets e Noise
+        real_label = torch.full((batch_size, 1), 0.8, device=self.device)
         fake_label = torch.zeros((batch_size, 1), device=self.device)
         valid_label = torch.ones((batch_size, 1), device=self.device)
 
-        # =========================================================================
-        # 1. TRAIN DISCRIMINATOR
-        # =========================================================================
-        # Generate fake batch (gradients not needed for G here)
+        # 2. Generazione Falsa (Sempre necessaria per G)
         z = torch.randn(batch_size, self.noise_dim, device=self.device)
         fake_bars, _ = self.generator(z, prev_bars, chord_idx)
-        
-        # Forward Pass: Real
-        real_pred, real_feats = self.discriminator(curr_bars, prev_bars, chord_idx)
-        d_loss_real = self.criterion(real_pred, real_label) # real_label = 0.9
 
-        # Forward Pass: Fake
-        fake_pred_det, _ = self.discriminator(fake_bars.detach(), prev_bars, chord_idx)
-        d_loss_fake = self.criterion(fake_pred_det, fake_label) # fake_label = 0
-
-        # Update D
-        d_loss = (d_loss_real + d_loss_fake) / 2
-        opt_d.zero_grad()
-        self.manual_backward(d_loss)
-        opt_d.step()
-
-        # Metrics: Accuracy
-        acc_real = (real_pred > 0.5).float().mean()
-        acc_fake = (fake_pred_det < 0.5).float().mean()
-        d_acc = (acc_real + acc_fake) / 2
+        # Inizializziamo le variabili che potrebbero non essere calcolate in ogni batch
+        # per evitare l'errore UnboundLocalError
+        d_loss = None
+        d_acc = None
 
         # =========================================================================
-        # 2. TRAIN GENERATOR
+        # 1. TRAIN DISCRIMINATOR (Ogni 3 batch)
         # =========================================================================
-        # Reuse 'fake_bars' from above (preserving gradients for G)
-        
-        # Forward Pass D (on fake, keeping gradients for G)
-        fake_pred, fake_feats = self.discriminator(fake_bars, prev_bars, chord_idx)
-        
-        # A. Adversarial Loss (G tries to fool D)
-        g_loss_adv = self.criterion(fake_pred, valid_label) # valid_label = 1
+        if batch_idx % 3 == 0:
+            d_noise = 0.1 * torch.randn_like(curr_bars)
+            
+            # Forward Pass: Real
+            real_pred, _ = self.discriminator(curr_bars + d_noise, chord_idx)
+            d_loss_real = self.criterion(real_pred, real_label)
 
-        # B. Feature Matching Loss (Stability)
-        mean_real_f = torch.mean(real_feats.detach(), dim=0)
+            # Forward Pass: Fake (usiamo .detach() per non influenzare G qui)
+            fake_pred_det, _ = self.discriminator(fake_bars.detach() + d_noise, chord_idx)
+            d_loss_fake = self.criterion(fake_pred_det, fake_label)
+
+            d_loss = (d_loss_real + d_loss_fake) / 2
+            opt_d.zero_grad()
+            self.manual_backward(d_loss)
+            opt_d.step()
+
+            # Accuratezza per il log
+            acc_real = (real_pred > 0.5).float().mean()
+            acc_fake = (fake_pred_det < 0.5).float().mean()
+            d_acc = (acc_real + acc_fake) / 2
+
+        # =========================================================================
+        # 2. TRAIN GENERATOR (Sempre)
+        # =========================================================================
+        
+        # PASSAGGIO CRUCIALE: Dobbiamo estrarre real_feats SEMPRE per la FM Loss.
+        # Lo facciamo con torch.no_grad() per non sprecare memoria e non allenare D.
+        with torch.no_grad():
+            _, real_feats = self.discriminator(curr_bars, chord_idx)
+
+        # Forward D su fake per allenare G
+        fake_pred, fake_feats = self.discriminator(fake_bars, chord_idx)
+        
+        # A. Adversarial Loss
+        g_loss_adv = self.criterion(fake_pred, valid_label)
+
+        # B. Feature Matching Loss (real_feats ora è disponibile!)
+        mean_real_f = torch.mean(real_feats, dim=0) # Rimosso .detach() perché è già in no_grad
         mean_fake_f = torch.mean(fake_feats, dim=0)
         g_loss_fm = torch.mean((mean_real_f - mean_fake_f) ** 2)
 
-        # Update G
         g_loss = g_loss_adv + self.feature_matching_weight * g_loss_fm
         
         opt_g.zero_grad()
@@ -285,13 +308,19 @@ class PianoGAN(BaseModel):
         # =========================================================================
         # 3. LOGGING
         # =========================================================================
-        self.log_dict({
-            "d_loss": d_loss,
-            "d_accuracy": d_acc,
+        metrics = {
             "g_loss": g_loss,
             "g_adv": g_loss_adv,
             "g_fm": g_loss_fm
-        }, prog_bar=True) 
+        }
+
+        if d_loss is not None:
+            metrics.update({
+                "d_loss": d_loss,
+                "d_accuracy": d_acc
+            })
+
+        self.log_dict(metrics, prog_bar=True)
 
     def validation_step(self, batch, batch_idx):
         prev_bars, curr_bars, chord_idx = batch
@@ -302,13 +331,43 @@ class PianoGAN(BaseModel):
         generated_bars, _ = self.generator(noise, prev_bars, chord_idx)
         
         # Valuta col discriminatore (senza aggiornare gradienti)
-        fake_output, _ = self.discriminator(generated_bars, prev_bars, chord_idx)
+        fake_output, _ = self.discriminator(generated_bars, chord_idx)
         
         # Calcola loss (quanto bene il generatore inganna il discriminatore su dati mai visti)
         val_g_loss = self.criterion(fake_output, torch.ones_like(fake_output))
         
-        # Logging
-        self.log("val_g_loss", val_g_loss, prog_bar=True, sync_dist=True)
-        
     def test_step(self, batch, batch_idx):
-        pass # Implementare se necessario
+        prev_bars, _, chord_idx = batch
+        batch_size = prev_bars.size(0)
+
+        # 1. Generazione delle barre dal rumore
+        z = torch.randn(batch_size, self.noise_dim, device=self.device)
+        gen_bars, _ = self.generator(z, prev_bars, chord_idx) #
+
+        # 2. Calcolo Istogramma delle barre generate (Pitch Class)
+        # Somma energia su Batch, Channel, Time -> (128 note MIDI)
+        gen_pitch_activity = gen_bars.sum(dim=(0, 1, 3)) 
+        
+        gen_hist = torch.zeros(12, device=self.device)
+        for m in range(128):
+            gen_hist[m % 12] += gen_pitch_activity[m]
+        
+        # Normalizzazione
+        gen_hist = gen_hist / (gen_hist.sum() + 1e-8)
+
+        # 3. Confronto con l'istogramma del dataset (se disponibile)
+        if hasattr(self, 'target_histogram'):
+            # Calcoliamo l'errore assoluto medio tra le distribuzioni
+            dist = torch.abs(gen_hist - self.target_histogram).mean()
+            self.log("test/histogram_error", dist)
+            
+            # Cosine Similarity (1 = identici, 0 = diversi)
+            cos_sim = torch.nn.functional.cosine_similarity(gen_hist.unsqueeze(0), 
+                                                            self.target_histogram.unsqueeze(0))
+            self.log("test/histogram_similarity", cos_sim)
+
+        # Logghiamo i valori dell'istogramma per l'analisi finale
+        for i, val in enumerate(gen_hist):
+            self.log(f"test_hist/note_{i}", val)
+
+        return gen_bars # Utile per visualizzazioni finali
