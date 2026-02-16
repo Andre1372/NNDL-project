@@ -69,8 +69,11 @@ class Generator(nn.Module):
         # Input channels: 256 (prev stage) + 256 (condition) + chord_dim
         in_ch = 512 + self.chord_dim
         self.gen_layer1 = self._transp_conv_block(in_ch, 256, (1, 2), (1, 2))
+        self.res1 = ResidualBlock(256) # <--- NUOVO
         self.gen_layer2 = self._transp_conv_block(in_ch, 256, (1, 2), (1, 2))
+        self.res2 = ResidualBlock(256) # <--- NUOVO
         self.gen_layer3 = self._transp_conv_block(in_ch, 256, (1, 2), (1, 2))
+        self.res3 = ResidualBlock(256) # <--- NUOVO
 
         # Final output layer
         self.gen_layer4 = nn.Sequential(
@@ -124,14 +127,16 @@ class Generator(nn.Module):
         # Step 1
         merged_step1 = self._concat_chords(base_features, condition_step4, chord_vec)
         gen_step1 = self.gen_layer1(merged_step1)
-
+        gen_step1 = self.res1(gen_step1) # <--- NUOVO
         # Step 2
         merged_step2 = self._concat_chords(gen_step1, condition_step3, chord_vec)
         gen_step2 = self.gen_layer2(merged_step2)
+        gen_step2 = self.res2(gen_step2) # <--- NUOVO
 
         # Step 3
         merged_step3 = self._concat_chords(gen_step2, condition_step2, chord_vec)
         gen_step3 = self.gen_layer3(merged_step3)
+        gen_step3 = self.res3(gen_step3) # <--- NUOVO
 
         # Step 4 (Final)
         merged_step4 = self._concat_chords(gen_step3, condition_step1, chord_vec)
@@ -141,7 +146,21 @@ class Generator(nn.Module):
         final_out = torch.clamp(final_out, 0, 1)
         return final_out, None
     
-
+class ResidualBlock(nn.Module):
+    def __init__(self, channels):
+        super(ResidualBlock, self).__init__()
+        self.conv_block = nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(channels),
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(channels, channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(channels)
+        )
+        self.activation = nn.LeakyReLU(0.2) #aggiunta attivazione con non linearità limitata
+    
+    def forward(self, x):
+        return self.activation(x + self.conv_block(x)) #output = input + F(input) -> permette al blocco di apprendere una funzione di residuo, facilitando il flusso del gradiente
+    
 class Discriminator(nn.Module):
     def __init__(self):
         super().__init__()
