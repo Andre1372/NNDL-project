@@ -183,8 +183,8 @@ class Discriminator(nn.Module):
             nn.Linear(64*3 + self.chord_dim, 512),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Dropout(0.3),
-            nn.Linear(512, 1),
-            nn.Sigmoid()
+            nn.Linear(512, 1)
+            # nn.Sigmoid() removed for WGAN-GP
         )
 
     def forward(self, x, chord_idx):
@@ -204,19 +204,21 @@ class Discriminator(nn.Module):
     
 
 class PianoGAN(BaseModel):
-    def __init__(self, noise_dim: int = 100, learning_rate: float = 0.0002, feature_matching_weight: float = 5.0):
+    def __init__(self, noise_dim: int = 100, learning_rate: float = 0.0002, feature_matching_weight: float = 5.0, gradient_penalty_lambda: float = 10.0):
         """ 
         Initialize the base model. 
         Args:
             noise_dim: Dimension of the input noise vector for the generator.
             learning_rate: Learning rate for both generator and discriminator optimizers.
             feature_matching_weight: Weight for the feature matching loss.
+            gradient_penalty_lambda: Weight for the gradient penalty (WGAN-GP).
         """
-        super().__init__(criterion=nn.BCELoss(), learning_rate=learning_rate)
+        super().__init__(criterion=None, learning_rate=learning_rate)
         
         self.save_hyperparameters()
         self.noise_dim = noise_dim
         self.feature_matching_weight = feature_matching_weight
+        self.gradient_penalty_lambda = gradient_penalty_lambda
         
         # Sub-modules
         self.generator = Generator(input_size=noise_dim)
@@ -255,66 +257,90 @@ class PianoGAN(BaseModel):
         )
         return [opt_d, opt_g], [] # standard Lightning format: (optimizers, schedulers)
 
+    def compute_gradient_penalty(self, real_samples, fake_samples, chord_idx):
+        """Calculates the gradient penalty loss for WGAN GP"""
+        # Random weight term for interpolation between real and fake samples
+        alpha = torch.rand((real_samples.size(0), 1, 1, 1), device=self.device)
+        
+        # Get random interpolation between real and fake samples
+        interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
+        
+        d_interpolates, _ = self.discriminator(interpolates, chord_idx)
+        
+        fake = torch.ones((real_samples.size(0), 1), device=self.device)
+        
+        # Get gradient w.r.t. interpolates
+        gradients = torch.autograd.grad(
+            outputs=d_interpolates,
+            inputs=interpolates,
+            grad_outputs=fake,
+            create_graph=True,
+            retain_graph=True,
+            only_inputs=True,
+        )[0]
+        
+        gradients = gradients.view(gradients.size(0), -1)
+        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+        return gradient_penalty
+
     def training_step(self, batch, batch_idx):
         opt_d, opt_g = self.optimizers()
         prev_bars, curr_bars, chord_idx = batch
         batch_size = prev_bars.size(0)
 
-        # 1. Definizione Targets e Noise
-        real_label = torch.full((batch_size, 1), 0.8, device=self.device)
-        fake_label = torch.zeros((batch_size, 1), device=self.device)
-        valid_label = torch.ones((batch_size, 1), device=self.device)
-
-        # 2. Generazione Falsa (Sempre necessaria per G)
-        z = torch.randn(batch_size, self.noise_dim, device=self.device)
-        fake_bars, _ = self.generator(z, prev_bars, chord_idx)
-
-        # Inizializziamo le variabili che potrebbero non essere calcolate in ogni batch
-        # per evitare l'errore UnboundLocalError
-        d_loss = None
-        d_acc = None
-
         # =========================================================================
-        # 1. TRAIN DISCRIMINATOR (Ogni 3 batch)
-        # =========================================================================
-        if batch_idx % 3 == 0:
-            d_noise = 0.1 * torch.randn_like(curr_bars)
-            
-            # Forward Pass: Real
-            real_pred, _ = self.discriminator(curr_bars + d_noise, chord_idx)
-            d_loss_real = self.criterion(real_pred, real_label)
-
-            # Forward Pass: Fake (usiamo .detach() per non influenzare G qui)
-            fake_pred_det, _ = self.discriminator(fake_bars.detach() + d_noise, chord_idx)
-            d_loss_fake = self.criterion(fake_pred_det, fake_label)
-
-            d_loss = (d_loss_real + d_loss_fake) / 2
-            opt_d.zero_grad()
-            self.manual_backward(d_loss)
-            opt_d.step()
-
-            # Accuratezza per il log
-            acc_real = (real_pred > 0.5).float().mean()
-            acc_fake = (fake_pred_det < 0.5).float().mean()
-            d_acc = (acc_real + acc_fake) / 2
-
-        # =========================================================================
-        # 2. TRAIN GENERATOR (Sempre)
+        # 1. TRAIN CRITIC (Discriminator)
         # =========================================================================
         
-        # PASSAGGIO CRUCIALE: Dobbiamo estrarre real_feats SEMPRE per la FM Loss.
-        # Lo facciamo con torch.no_grad() per non sprecare memoria e non allenare D.
+        # Generazione fake 
+        z = torch.randn(batch_size, self.noise_dim, device=self.device)
+        fake_bars, _ = self.generator(z, prev_bars, chord_idx)
+        
+        # Forward Pass: Real & Fake
+        real_validity, _ = self.discriminator(curr_bars, chord_idx)
+        fake_validity, _ = self.discriminator(fake_bars.detach(), chord_idx)
+        
+        # Gradient Penalty
+        gradient_penalty = self.compute_gradient_penalty(curr_bars.data, fake_bars.data, chord_idx)
+        
+        # Adversarial loss (Wasserstein)
+        # Loss D (da minimizzare): E[fake] - E[real] + lambda * gp
+        # E[fake] è il punteggio per i fake (basso è meglio per D in standard, ma qui:
+        # Il critico vuole MAX E[real] - E[fake].
+        # Quindi vuole MIN E[fake] - E[real].
+        d_loss = torch.mean(fake_validity) - torch.mean(real_validity) + self.gradient_penalty_lambda * gradient_penalty
+        
+        opt_d.zero_grad()
+        self.manual_backward(d_loss)
+        opt_d.step()
+        
+        # Logging for Critic
+        w_dist = torch.mean(real_validity) - torch.mean(fake_validity)
+        
+        self.log("d_loss", d_loss, prog_bar=True)
+        self.log("w_distance", w_dist, prog_bar=True)
+        
+        # =========================================================================
+        # 2. TRAIN GENERATOR
+        # =========================================================================
+        
+        # Train Generator regularly (1:1 with Critic in this implementation)
+        
+        # Forward D su fake per allenare G
+        # Nota: Rigeneriamo il grafo o riusiamo? Riusare fake_bars va bene ma dobbiamo rifare la forward 
+        # se volevamo backprop (ma fake_validity era detached?). No, sopra fake_validity era su fake_bars.detach().
+        # Qui ci serve con gradiente.
+        fake_validity_g, fake_feats = self.discriminator(fake_bars, chord_idx)
+        
+        # A. Adversarial Loss
+        # G vuole massimizzare E[Critic(fake)] => minimizzare -E[Critic(fake)]
+        g_loss_adv = -torch.mean(fake_validity_g)
+
+        # B. Feature Matching Loss
         with torch.no_grad():
             _, real_feats = self.discriminator(curr_bars, chord_idx)
 
-        # Forward D su fake per allenare G
-        fake_pred, fake_feats = self.discriminator(fake_bars, chord_idx)
-        
-        # A. Adversarial Loss
-        g_loss_adv = self.criterion(fake_pred, valid_label)
-
-        # B. Feature Matching Loss (real_feats ora è disponibile!)
-        mean_real_f = torch.mean(real_feats, dim=0) # Rimosso .detach() perché è già in no_grad
+        mean_real_f = torch.mean(real_feats, dim=0)
         mean_fake_f = torch.mean(fake_feats, dim=0)
         g_loss_fm = torch.mean((mean_real_f - mean_fake_f) ** 2)
 
@@ -324,22 +350,10 @@ class PianoGAN(BaseModel):
         self.manual_backward(g_loss)
         opt_g.step()
 
-        # =========================================================================
-        # 3. LOGGING
-        # =========================================================================
-        metrics = {
-            "g_loss": g_loss,
-            "g_adv": g_loss_adv,
-            "g_fm": g_loss_fm
-        }
-
-        if d_loss is not None:
-            metrics.update({
-                "d_loss": d_loss,
-                "d_accuracy": d_acc
-            })
-
-        self.log_dict(metrics, prog_bar=True)
+        # Logging
+        self.log("g_loss", g_loss, prog_bar=True)
+        self.log("g_adv", g_loss_adv)
+        self.log("g_fm", g_loss_fm)
 
     def validation_step(self, batch, batch_idx):
         prev_bars, curr_bars, chord_idx = batch
@@ -353,7 +367,8 @@ class PianoGAN(BaseModel):
         fake_output, _ = self.discriminator(generated_bars, chord_idx)
         
         # Calcola loss (quanto bene il generatore inganna il discriminatore su dati mai visti)
-        val_g_loss = self.criterion(fake_output, torch.ones_like(fake_output))
+        # WGAN val loss: -E[Critic(fake)]
+        val_g_loss = -torch.mean(fake_output)
         
     def test_step(self, batch, batch_idx):
         prev_bars, _, chord_idx = batch
