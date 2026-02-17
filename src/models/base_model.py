@@ -78,7 +78,7 @@ class Generator(nn.Module):
         # Final output layer
         self.gen_layer4 = nn.Sequential(
             nn.ConvTranspose2d(in_ch, 1, kernel_size=(128, 1), stride=1),
-            nn.Sigmoid()
+            nn.Sigmoid() # REMOVED: Softmax is applied in forward for monophonic output
         )
 
     def _conv_block(self, in_channels, out_channels, k_size, stride):
@@ -141,9 +141,7 @@ class Generator(nn.Module):
         # Step 4 (Final)
         merged_step4 = self._concat_chords(gen_step3, condition_step1, chord_vec)
         final_out = self.gen_layer4(merged_step4)
-        final_out = final_out*1.1 # Amplificazione per compensare la saturazione da Sigmoid
 
-        final_out = torch.clamp(final_out, 0, 1)
         return final_out, None
     
 class ResidualBlock(nn.Module):

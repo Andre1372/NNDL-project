@@ -71,7 +71,55 @@ def identify_chord(piano_roll_bar: np.ndarray) -> int:
             best_chord = root + 12 # 12-23
 
     return best_chord
+
+
+def process_to_monophonic_continuous(piano_roll: np.ndarray) -> np.ndarray:
+    """
+    Applica la logica di MidiNet: trasforma un piano roll polifonico in una 
+    melodia monofonica senza silenzi.
     
+    Args:
+        piano_roll (np.ndarray): Matrice (pitch=128, time=128) con valori 0-1.
+    Returns:
+        np.ndarray: Matrice binaria con esattamente una nota per time step.
+    """
+    # 1. STRATEGIA "HIGHEST NOTE PRIORITY" (Sezione 4.2.1 del paper)
+    # Identifichiamo la nota più alta per ogni istante temporale
+    h, w = piano_roll.shape
+    monophonic_roll = np.zeros_like(piano_roll)
+    
+    for t in range(w):
+        # Cerchiamo gli indici dei pitch attivi (velocity > 0)
+        active_pitches = np.where(piano_roll[:, t] > 0)[0]
+        
+        if len(active_pitches) > 0:
+            # Selezioniamo il pitch più alto (tipico della melodia principale)
+            highest_pitch = np.max(active_pitches)
+            monophonic_roll[highest_pitch, t] = 1.0
+
+    # 2. STRATEGIA "PROLONGING & FILLING" (Sezione 4.1 del paper)
+    # Corregge il piano roll per eliminare i silenzi (pauses)
+    
+    # A. Riempimento in avanti (Forward Fill): prolunga le note nelle pause successive
+    for t in range(1, w):
+        # Se al tempo t non c'è nessuna nota attiva
+        if np.sum(monophonic_roll[:, t]) == 0:
+            # Copiamo lo stato del pitch dal time step precedente
+            monophonic_roll[:, t] = monophonic_roll[:, t-1]
+
+    # B. Correzione del silenzio iniziale (Initial Silence)
+    # Se il primo step è vuoto, lo riempiamo con la prima nota disponibile nel segmento
+    if np.sum(monophonic_roll[:, 0]) == 0:
+        # Trova l'indice del primo time step che contiene una nota
+        first_active_step = np.where(monophonic_roll.sum(axis=0) > 0)[0]
+        if len(first_active_step) > 0:
+            idx = first_active_step[0]
+            first_pitch = np.argmax(monophonic_roll[:, idx])
+            # Applichiamo quel pitch a tutti i passi temporali iniziali vuoti
+            monophonic_roll[first_pitch, :idx] = 1.0
+            
+    return monophonic_roll
+
 
 class MidiPreprocessor:
     """
@@ -112,6 +160,9 @@ class MidiPreprocessor:
         # Clip pitch range
         piano_roll[:self.note_start, :] = 0
         piano_roll[self.note_end:, :] = 0
+
+        # --- ### MODIFICA: MONOPHONIC CONTINUOUS ---
+        piano_roll = process_to_monophonic_continuous(piano_roll)
         
         return piano_roll
 
