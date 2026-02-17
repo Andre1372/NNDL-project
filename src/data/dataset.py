@@ -161,9 +161,6 @@ class MidiPreprocessor:
         piano_roll[:self.note_start, :] = 0
         piano_roll[self.note_end:, :] = 0
 
-        # --- ### MODIFICA: MONOPHONIC CONTINUOUS ---
-        piano_roll = process_to_monophonic_continuous(piano_roll)
-        
         return piano_roll
 
     def _is_segment_valid(self, piano_roll: np.ndarray) -> bool:
@@ -248,6 +245,10 @@ class MidiPreprocessor:
                             segment_chords.append(chord_idx)
                         
                         segment_chords = np.array(segment_chords, dtype=np.uint8)
+                        
+                        # --- ### MODIFICA: MONOPHONIC CONTINUOUS ---
+                        # Applichiamo la trasformazione monofonica DOPO aver identificato gli accordi
+                        piano_roll = process_to_monophonic_continuous(piano_roll)
                         # ----------------------------------------
 
                         # Save segment to disk
