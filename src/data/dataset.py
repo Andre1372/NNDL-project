@@ -104,7 +104,10 @@ class MidiPreprocessor:
         piano_roll = instr.get_piano_roll(fs=fs, times=time_segment)
         
         # Normalize
-        piano_roll = piano_roll.astype(np.float32) / 127.0   
+        # piano_roll = piano_roll.astype(np.float32) / 127.0   
+        
+        # Binarize
+        piano_roll = (piano_roll > 0).astype(np.float32)
         
         # Clip pitch range
         piano_roll[:self.note_start, :] = 0

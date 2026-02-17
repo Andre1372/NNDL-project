@@ -119,7 +119,7 @@ class Generator(nn.Module):
         # 3. Process Noise & Project
         proj = self.project_process(z)
         # Combine with memory and reshape
-        base_features = self.reshape_layer(proj) # + new_hidden_state add to use gru
+        base_features = self.reshape_layer(proj) # + new_hidden_state # add to use gru
         
         # 4. Generator Upsampling Steps
         chord_vec = self.chord_embedding(chord_idx)
@@ -142,7 +142,7 @@ class Generator(nn.Module):
         merged_step4 = self._concat_chords(gen_step3, condition_step1, chord_vec)
         final_out = self.gen_layer4(merged_step4)
         final_out = final_out*1.1 # Amplificazione per compensare la saturazione da Sigmoid
-    
+
         final_out = torch.clamp(final_out, 0, 1)
         return final_out, None
     
