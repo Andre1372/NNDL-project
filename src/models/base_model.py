@@ -49,7 +49,6 @@ class Generator(nn.Module):
             nn.Linear(input_size, 1024),
             nn.BatchNorm1d(1024),
             nn.LeakyReLU(0.2),
-            nn.Dropout(0.3),
             nn.Linear(1024, 512),
             nn.BatchNorm1d(512),
             nn.LeakyReLU(0.2),
@@ -69,16 +68,16 @@ class Generator(nn.Module):
         # Input channels: 256 (prev stage) + 256 (condition) + chord_dim
         in_ch = 512 + self.chord_dim
         self.gen_layer1 = self._transp_conv_block(in_ch, 256, (1, 2), (1, 2))
-        self.res1 = ResidualBlock(256) # <--- NUOVO
+        self.res1 = self._residual_block(256)
         self.gen_layer2 = self._transp_conv_block(in_ch, 256, (1, 2), (1, 2))
-        self.res2 = ResidualBlock(256) # <--- NUOVO
+        self.res2 = self._residual_block(256)
         self.gen_layer3 = self._transp_conv_block(in_ch, 256, (1, 2), (1, 2))
-        self.res3 = ResidualBlock(256) # <--- NUOVO
+        self.res3 = self._residual_block(256)
 
         # Final output layer
         self.gen_layer4 = nn.Sequential(
             nn.ConvTranspose2d(in_ch, 1, kernel_size=(128, 1), stride=1),
-            nn.Sigmoid() # REMOVED: Softmax is applied in forward for monophonic output
+            nn.Sigmoid()
         )
 
     def _conv_block(self, in_channels, out_channels, k_size, stride):
@@ -93,6 +92,18 @@ class Generator(nn.Module):
             nn.ConvTranspose2d(in_channels, out_channels, k_size, stride),
             nn.BatchNorm2d(out_channels),
             nn.LeakyReLU(0.2)
+        )
+
+    def _residual_block(self, channels):
+        return nn.Sequential(
+            nn.ZeroPad2d((0, 1, 0, 0)), # Padding esplicito per kernel (1, 2): (Left=0, Right=1, Top=0, Bottom=0)
+            nn.Conv2d(channels, channels, kernel_size=(1,2), stride=1, padding=0),
+            nn.BatchNorm2d(channels),
+            nn.LeakyReLU(0.2),
+            nn.ZeroPad2d((0, 1, 0, 0)), # Padding esplicito
+            nn.Conv2d(channels, channels, kernel_size=(1,2), stride=1, padding=0),
+            nn.BatchNorm2d(channels),
+            nn.LeakyReLU(0.2),
         )
 
     def _concat_chords(self, feature_map, cond_map, chord_vec):
@@ -127,16 +138,17 @@ class Generator(nn.Module):
         # Step 1
         merged_step1 = self._concat_chords(base_features, condition_step4, chord_vec)
         gen_step1 = self.gen_layer1(merged_step1)
-        gen_step1 = self.res1(gen_step1) # <--- NUOVO
+        gen_step1 = torch.nn.functional.leaky_relu(gen_step1 + self.res1(gen_step1), 0.2)
+
         # Step 2
         merged_step2 = self._concat_chords(gen_step1, condition_step3, chord_vec)
         gen_step2 = self.gen_layer2(merged_step2)
-        gen_step2 = self.res2(gen_step2) # <--- NUOVO
+        gen_step2 = torch.nn.functional.leaky_relu(gen_step2 + self.res2(gen_step2), 0.2)
 
         # Step 3
         merged_step3 = self._concat_chords(gen_step2, condition_step2, chord_vec)
         gen_step3 = self.gen_layer3(merged_step3)
-        gen_step3 = self.res3(gen_step3) # <--- NUOVO
+        gen_step3 = torch.nn.functional.leaky_relu(gen_step3 + self.res3(gen_step3), 0.2)
 
         # Step 4 (Final)
         merged_step4 = self._concat_chords(gen_step3, condition_step1, chord_vec)
@@ -144,21 +156,7 @@ class Generator(nn.Module):
 
         return final_out, None
     
-class ResidualBlock(nn.Module):
-    def __init__(self, channels):
-        super(ResidualBlock, self).__init__()
-        self.conv_block = nn.Sequential(
-            nn.Conv2d(channels, channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(channels),
-            nn.LeakyReLU(0.2),
-            nn.Conv2d(channels, channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(channels)
-        )
-        self.activation = nn.LeakyReLU(0.2) #aggiunta attivazione con non linearità limitata
-    
-    def forward(self, x):
-        return self.activation(x + self.conv_block(x)) #output = input + F(input) -> permette al blocco di apprendere una funzione di residuo, facilitando il flusso del gradiente
-    
+
 class Discriminator(nn.Module):
     def __init__(self):
         super().__init__()
@@ -168,9 +166,10 @@ class Discriminator(nn.Module):
         # Feature Extractor (Convolutional Layers)
         self.conv_layers = nn.Sequential(
             nn.Conv2d(1, 32, (128, 2), (1, 2)),
+            nn.BatchNorm2d(32),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(32, 64, (1, 4), (1, 2)),
-            nn.InstanceNorm2d(64),
+            nn.BatchNorm2d(64),
             nn.LeakyReLU(0.2, inplace=True)
         )
         
@@ -179,10 +178,10 @@ class Discriminator(nn.Module):
         self.flatten = nn.Flatten()
         self.classifier = nn.Sequential(
             nn.Linear(64*3 + self.chord_dim, 512),
+            nn.BatchNorm1d(512),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Dropout(0.3),
             nn.Linear(512, 1)
-            # nn.Sigmoid() removed for WGAN-GP
         )
 
     def forward(self, x, chord_idx):
