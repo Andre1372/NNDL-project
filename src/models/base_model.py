@@ -4,36 +4,6 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 
-class BaseModel(pl.LightningModule):
-    """
-    Base model class for all neural network models in the project.
-    
-    This provides a common interface for model saving, loading, and summary.
-    """
-    
-    def __init__(self, criterion: nn.Module, learning_rate: float = 1e-3):
-        """ Initialize the base model. """
-        super(BaseModel, self).__init__()
-        self.learning_rate = learning_rate
-        self.criterion = criterion
-
-    def configure_optimizers(self) -> torch.optim.Optimizer:
-
-        raise NotImplementedError("Subclasses must implement configure_optimizers() to return their optimizers.")
-
-    def get_num_parameters(self) -> int:
-        """ Get the total number of trainable parameters. """
-        return sum(p.numel() for p in self.parameters() if p.requires_grad)
-    
-    def summary(self):
-        """Print model summary."""
-        print(f"\n{'='*80}")
-        print(f"Model: {self.__class__.__name__}")
-        print(f"{'='*80}")
-        print(self)
-        print(f"Total trainable parameters: {self.get_num_parameters():,}")
-        print(f"{'='*80}\n")
-
 
 class Generator(nn.Module):
     def __init__(self, input_size):
@@ -200,17 +170,16 @@ class Discriminator(nn.Module):
         return validity, feat_curr
     
 
-class PianoGAN(BaseModel):
-    def __init__(self, noise_dim: int = 100, learning_rate: float = 0.0002, feature_matching_weight: float = 5.0, gradient_penalty_lambda: float = 10.0):
+class PianoGAN(pl.LightningModule):
+    def __init__(self, noise_dim: int = 100, feature_matching_weight: float = 5.0, gradient_penalty_lambda: float = 10.0):
         """ 
         Initialize the base model. 
         Args:
             noise_dim: Dimension of the input noise vector for the generator.
-            learning_rate: Learning rate for both generator and discriminator optimizers.
             feature_matching_weight: Weight for the feature matching loss.
             gradient_penalty_lambda: Weight for the gradient penalty (WGAN-GP).
         """
-        super().__init__(criterion=None, learning_rate=learning_rate)
+        super().__init__()
         
         self.save_hyperparameters()
         self.noise_dim = noise_dim
@@ -241,17 +210,9 @@ class PianoGAN(BaseModel):
         # Learning Rate del Discriminatore (più basso per frenarlo)
         lr_d = 0.00005
 
-        opt_g = torch.optim.Adam(
-            self.generator.parameters(), 
-            lr=lr_g, 
-            betas=(0.5, 0.999) # Beta1 a 0.5 aiuta la stabilità nelle GAN
-        )
+        opt_g = torch.optim.RMSprop(self.generator.parameters(), lr=lr_g)
+        opt_d = torch.optim.RMSprop(self.discriminator.parameters(), lr=lr_d)
         
-        opt_d = torch.optim.Adam(
-            self.discriminator.parameters(), 
-            lr=lr_d, 
-            betas=(0.5, 0.999)
-        )
         return [opt_d, opt_g], [] # standard Lightning format: (optimizers, schedulers)
 
     def compute_gradient_penalty(self, real_samples, fake_samples, chord_idx):
@@ -270,10 +231,10 @@ class PianoGAN(BaseModel):
         gradients = torch.autograd.grad(
             outputs=d_interpolates,
             inputs=interpolates,
-            grad_outputs=fake,
-            create_graph=True,
-            retain_graph=True,
-            only_inputs=True,
+            grad_outputs=fake,   # Acts as initial gradient (all 1s) to handle vector output; computes sum of gradients
+            create_graph=True,   # Critical: builds graph of the gradient calculation to allow 2nd derivative (backprop through gradient)
+            retain_graph=True,   # Keeps the graph in memory so we can reuse it for the final loss.backward() pass
+            only_inputs=True,    # Optimization: only compute gradients w.r.t 'interpolates', ignoring model parameters here
         )[0]
         
         gradients = gradients.view(gradients.size(0), -1)
@@ -286,7 +247,7 @@ class PianoGAN(BaseModel):
         batch_size = prev_bars.size(0)
 
         # =========================================================================
-        # 1. TRAIN CRITIC (Discriminator)
+        # 1. TRAIN CRITIC
         # =========================================================================
         
         # Generazione fake 
@@ -302,18 +263,14 @@ class PianoGAN(BaseModel):
         
         # Adversarial loss (Wasserstein)
         # Loss D (da minimizzare): E[fake] - E[real] + lambda * gp
-        # E[fake] è il punteggio per i fake (basso è meglio per D in standard, ma qui:
-        # Il critico vuole MAX E[real] - E[fake].
-        # Quindi vuole MIN E[fake] - E[real].
-        d_loss = torch.mean(fake_validity) - torch.mean(real_validity) + self.gradient_penalty_lambda * gradient_penalty
+        w_dist = torch.mean(real_validity) - torch.mean(fake_validity)
+        d_loss = w_dist + self.gradient_penalty_lambda * gradient_penalty
         
         opt_d.zero_grad()
         self.manual_backward(d_loss)
         opt_d.step()
         
-        # Logging for Critic
-        w_dist = torch.mean(real_validity) - torch.mean(fake_validity)
-        
+        # Logging for Critic        
         self.log("d_loss", d_loss, prog_bar=True)
         self.log("w_distance", w_dist, prog_bar=True)
         
@@ -324,13 +281,10 @@ class PianoGAN(BaseModel):
         # Train Generator regularly (1:1 with Critic in this implementation)
         
         # Forward D su fake per allenare G
-        # Nota: Rigeneriamo il grafo o riusiamo? Riusare fake_bars va bene ma dobbiamo rifare la forward 
-        # se volevamo backprop (ma fake_validity era detached?). No, sopra fake_validity era su fake_bars.detach().
-        # Qui ci serve con gradiente.
         fake_validity_g, fake_feats = self.discriminator(fake_bars, chord_idx)
         
         # A. Adversarial Loss
-        # G vuole massimizzare E[Critic(fake)] => minimizzare -E[Critic(fake)]
+        # G vuole minimizzare -E[Critic(fake)]
         g_loss_adv = -torch.mean(fake_validity_g)
 
         # B. Feature Matching Loss
@@ -402,3 +356,16 @@ class PianoGAN(BaseModel):
             self.log(f"test_hist/note_{i}", val)
 
         return gen_bars # Utile per visualizzazioni finali
+
+    def get_num_parameters(self) -> int:
+        """ Get the total number of trainable parameters. """
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+    
+    def summary(self):
+        """Print model summary."""
+        print(f"\n{'='*80}")
+        print(f"Model: {self.__class__.__name__}")
+        print(f"{'='*80}")
+        print(self)
+        print(f"Total trainable parameters: {self.get_num_parameters():,}")
+        print(f"{'='*80}\n")
