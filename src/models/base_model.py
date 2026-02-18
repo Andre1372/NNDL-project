@@ -264,7 +264,7 @@ class PianoGAN(pl.LightningModule):
         # Adversarial loss (Wasserstein)
         # Loss D (da minimizzare): E[fake] - E[real] + lambda * gp
         w_dist = torch.mean(real_validity) - torch.mean(fake_validity)
-        d_loss = w_dist + self.gradient_penalty_lambda * gradient_penalty
+        d_loss = -w_dist + self.gradient_penalty_lambda * gradient_penalty
         
         opt_d.zero_grad()
         self.manual_backward(d_loss)
@@ -272,7 +272,7 @@ class PianoGAN(pl.LightningModule):
         
         # Logging for Critic        
         self.log("d_loss", d_loss, prog_bar=True)
-        self.log("w_distance", w_dist, prog_bar=True)
+        self.log("w_distance", w_dist)
         
         # =========================================================================
         # 2. TRAIN GENERATOR
@@ -315,11 +315,20 @@ class PianoGAN(pl.LightningModule):
         generated_bars, _ = self.generator(noise, prev_bars, chord_idx)
         
         # Valuta col discriminatore (senza aggiornare gradienti)
-        fake_output, _ = self.discriminator(generated_bars, chord_idx)
+        fake_validity, fake_feats = self.discriminator(generated_bars, chord_idx)
+        real_validity, real_feats = self.discriminator(curr_bars, chord_idx)
         
-        # Calcola loss (quanto bene il generatore inganna il discriminatore su dati mai visti)
-        # WGAN val loss: -E[Critic(fake)]
-        val_g_loss = -torch.mean(fake_output)
+        # Calcola W-Distance: E[real] - E[fake]
+        val_w_dist = torch.mean(real_validity) - torch.mean(fake_validity)
+        
+        # Calcola Feature Matching Loss
+        mean_real_f = torch.mean(real_feats, dim=0)
+        mean_fake_f = torch.mean(fake_feats, dim=0)
+        val_g_fm = torch.mean((mean_real_f - mean_fake_f) ** 2)
+        
+        # Log
+        self.log("val_w_dist", val_w_dist, prog_bar=True)
+        self.log("val_g_fm", val_g_fm, prog_bar=True)
         
     def test_step(self, batch, batch_idx):
         prev_bars, _, chord_idx = batch
