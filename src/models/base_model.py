@@ -305,6 +305,7 @@ class PianoGAN(pl.LightningModule):
         self.log("g_loss", g_loss, prog_bar=True)
         self.log("g_adv", g_loss_adv)
         self.log("g_fm", g_loss_fm)
+        self.log("global_step", float(self.global_step))
 
     def validation_step(self, batch, batch_idx):
         prev_bars, curr_bars, chord_idx = batch

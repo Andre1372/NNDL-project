@@ -12,6 +12,8 @@ import warnings
 from pathlib import Path
 import shutil
 import json
+import time
+import torch
 
 REPO_ROOT = Path(__file__).parents[2].resolve()
 
@@ -35,6 +37,8 @@ class LightningTrainer:
         enable_logging: bool = False,               # Whether to enable TensorBoard logging
         experiment_name: str = 'default',           # Experiment name for logging
         overwrite_last: bool = False,               # Whether to overwrite the last version
+
+        thermal_pause: bool = True,           # Nuova opzione
     ):
         """ Initialize the Lightning trainer. """
 
@@ -49,6 +53,12 @@ class LightningTrainer:
 
         # Setup callbacks
         callbacks = []
+
+        # --- AGGIUNTA CALLBACK TERMICO ---
+        if thermal_pause:
+            thermal_callback = ThermalCoolingCallback()
+            callbacks.append(thermal_callback)
+        # ---------------------------------
         
         # directories
         self.logs_dir = REPO_ROOT / 'lightning_logs'
@@ -164,3 +174,15 @@ class LightningTrainer:
         # Write JSON
         with (saved_dir / 'config.json').open('w', encoding='utf-8') as fh:
             json.dump(config, fh, ensure_ascii=False, indent=4)
+
+class ThermalCoolingCallback(pl.Callback):
+    def __init__(self, sleep_duration: int = 60):
+        super().__init__()
+        self.sleep_duration = sleep_duration
+
+    def on_train_epoch_end(self, trainer, pl_module):
+        # La pausa avviene solo quando l'intera epoca è finita
+        print(f"\n[Thermal Management] Fine epoca raggiunta. Raffreddamento per {self.sleep_duration}s...")
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+        time.sleep(self.sleep_duration)
