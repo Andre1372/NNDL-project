@@ -136,10 +136,10 @@ class Discriminator(nn.Module):
         # Feature Extractor (Convolutional Layers)
         self.conv_layers = nn.Sequential(
             nn.Conv2d(1, 32, (128, 2), (1, 2)),
-            nn.BatchNorm2d(32),
+            nn.InstanceNorm2d(32, affine=True),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(32, 64, (1, 4), (1, 2)),
-            nn.BatchNorm2d(64),
+            nn.InstanceNorm2d(64, affine=True),
             nn.LeakyReLU(0.2, inplace=True)
         )
         
@@ -148,7 +148,7 @@ class Discriminator(nn.Module):
         self.flatten = nn.Flatten()
         self.classifier = nn.Sequential(
             nn.Linear(64*3 + self.chord_dim, 512),
-            nn.BatchNorm1d(512),
+            nn.LayerNorm(512),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Dropout(0.3),
             nn.Linear(512, 1)
@@ -171,13 +171,14 @@ class Discriminator(nn.Module):
     
 
 class PianoGAN(pl.LightningModule):
-    def __init__(self, noise_dim: int = 100, feature_matching_weight: float = 5.0, gradient_penalty_lambda: float = 10.0):
+    def __init__(self, noise_dim: int = 100, feature_matching_weight: float = 0.1, gradient_penalty_lambda: float = 10.0, n_critic: int = 5):
         """ 
         Initialize the base model. 
         Args:
             noise_dim: Dimension of the input noise vector for the generator.
             feature_matching_weight: Weight for the feature matching loss.
             gradient_penalty_lambda: Weight for the gradient penalty (WGAN-GP).
+            n_critic: Number of critic steps per generator step.
         """
         super().__init__()
         
@@ -185,6 +186,7 @@ class PianoGAN(pl.LightningModule):
         self.noise_dim = noise_dim
         self.feature_matching_weight = feature_matching_weight
         self.gradient_penalty_lambda = gradient_penalty_lambda
+        self.n_critic = n_critic
         
         # Sub-modules
         self.generator = Generator(input_size=noise_dim)
@@ -205,10 +207,10 @@ class PianoGAN(pl.LightningModule):
 
     def configure_optimizers(self):
         """ Define the two separate optimizers for Discriminator and Generator. """
-        # Learning Rate del Generatore (più alto per permettergli di rincorrere)
-        lr_g = 0.0004 
-        # Learning Rate del Discriminatore (più basso per frenarlo)
-        lr_d = 0.00005
+        # Learning Rate del Generatore (più basso per stabilità WGAN)
+        lr_g = 0.0001
+        # Learning Rate del Discriminatore (più alto per stima Wasserstein ottimale - TTUR)
+        lr_d = 0.0004
 
         opt_g = torch.optim.RMSprop(self.generator.parameters(), lr=lr_g)
         opt_d = torch.optim.RMSprop(self.discriminator.parameters(), lr=lr_d)
@@ -275,37 +277,36 @@ class PianoGAN(pl.LightningModule):
         self.log("w_distance", w_dist)
         
         # =========================================================================
-        # 2. TRAIN GENERATOR
+        # 2. TRAIN GENERATOR (Every n_critic steps)
         # =========================================================================
         
-        # Train Generator regularly (1:1 with Critic in this implementation)
-        
-        # Forward D su fake per allenare G
-        fake_validity_g, fake_feats = self.discriminator(fake_bars, chord_idx)
-        
-        # A. Adversarial Loss
-        # G vuole minimizzare -E[Critic(fake)]
-        g_loss_adv = -torch.mean(fake_validity_g)
+        if batch_idx % self.n_critic == 0:
+            # Forward D su fake per allenare G
+            fake_validity_g, fake_feats = self.discriminator(fake_bars, chord_idx)
+            
+            # A. Adversarial Loss
+            # G vuole minimizzare -E[Critic(fake)]
+            g_loss_adv = -torch.mean(fake_validity_g)
 
-        # B. Feature Matching Loss
-        with torch.no_grad():
-            _, real_feats = self.discriminator(curr_bars, chord_idx)
+            # B. Feature Matching Loss
+            with torch.no_grad():
+                _, real_feats = self.discriminator(curr_bars, chord_idx)
 
-        mean_real_f = torch.mean(real_feats, dim=0)
-        mean_fake_f = torch.mean(fake_feats, dim=0)
-        g_loss_fm = torch.mean((mean_real_f - mean_fake_f) ** 2)
+            mean_real_f = torch.mean(real_feats, dim=0)
+            mean_fake_f = torch.mean(fake_feats, dim=0)
+            g_loss_fm = torch.mean((mean_real_f - mean_fake_f) ** 2)
 
-        g_loss = g_loss_adv + self.feature_matching_weight * g_loss_fm
-        
-        opt_g.zero_grad()
-        self.manual_backward(g_loss)
-        opt_g.step()
+            g_loss = g_loss_adv + self.feature_matching_weight * g_loss_fm
+            
+            opt_g.zero_grad()
+            self.manual_backward(g_loss)
+            opt_g.step()
 
-        # Logging
-        self.log("g_loss", g_loss, prog_bar=True)
-        self.log("g_adv", g_loss_adv)
-        self.log("g_fm", g_loss_fm)
-        self.log("global_step", float(self.global_step))
+            # Logging
+            self.log("g_loss", g_loss, prog_bar=True)
+            self.log("g_adv", g_loss_adv)
+            self.log("g_fm", g_loss_fm)
+            self.log("global_step", float(self.global_step))
 
     def validation_step(self, batch, batch_idx):
         prev_bars, curr_bars, chord_idx = batch

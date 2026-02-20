@@ -98,25 +98,26 @@ def process_to_monophonic_continuous(piano_roll: np.ndarray) -> np.ndarray:
             monophonic_roll[highest_pitch, t] = 1.0
 
     # 2. STRATEGIA "PROLONGING & FILLING" (Sezione 4.1 del paper)
-    # Corregge il piano roll per eliminare i silenzi (pauses)
+    # RIMOSSA: Per evitare monotonia e mantenere i silenzi originali.
+    # Se si vuole reintrodurre la continuità forzata, decommentare le righe seguenti.
     
-    # A. Riempimento in avanti (Forward Fill): prolunga le note nelle pause successive
-    for t in range(1, w):
-        # Se al tempo t non c'è nessuna nota attiva
-        if np.sum(monophonic_roll[:, t]) == 0:
-            # Copiamo lo stato del pitch dal time step precedente
-            monophonic_roll[:, t] = monophonic_roll[:, t-1]
+    # # A. Riempimento in avanti (Forward Fill): prolunga le note nelle pause successive
+    # for t in range(1, w):
+    #     # Se al tempo t non c'è nessuna nota attiva
+    #     if np.sum(monophonic_roll[:, t]) == 0:
+    #         # Copiamo lo stato del pitch dal time step precedente
+    #         monophonic_roll[:, t] = monophonic_roll[:, t-1]
 
-    # B. Correzione del silenzio iniziale (Initial Silence)
-    # Se il primo step è vuoto, lo riempiamo con la prima nota disponibile nel segmento
-    if np.sum(monophonic_roll[:, 0]) == 0:
-        # Trova l'indice del primo time step che contiene una nota
-        first_active_step = np.where(monophonic_roll.sum(axis=0) > 0)[0]
-        if len(first_active_step) > 0:
-            idx = first_active_step[0]
-            first_pitch = np.argmax(monophonic_roll[:, idx])
-            # Applichiamo quel pitch a tutti i passi temporali iniziali vuoti
-            monophonic_roll[first_pitch, :idx] = 1.0
+    # # B. Correzione del silenzio iniziale (Initial Silence)
+    # # Se il primo step è vuoto, lo riempiamo con la prima nota disponibile nel segmento
+    # if np.sum(monophonic_roll[:, 0]) == 0:
+    #     # Trova l'indice del primo time step che contiene una nota
+    #     first_active_step = np.where(monophonic_roll.sum(axis=0) > 0)[0]
+    #     if len(first_active_step) > 0:
+    #         idx = first_active_step[0]
+    #         first_pitch = np.argmax(monophonic_roll[:, idx])
+    #         # Applichiamo quel pitch a tutti i passi temporali iniziali vuoti
+    #         monophonic_roll[first_pitch, :idx] = 1.0
             
     return monophonic_roll
 
