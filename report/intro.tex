@@ -5,15 +5,14 @@
 
 \begin{remark}
 \textbf{Short Intro:} The task of generating music is a frontier in Artificial Intelligence, since it poses the challenge of training a network to be creative, but with the rigid constraints imposed by music theory.
-While some architectures are already capable of generating technically corect sequences, capturing the key points of realistic, human-like compsitions, remains an interesting topic. This is a praticularly interesting problem
+While some architectures are already capable of generating technically correct sequences, capturing the key points of realistic, human-like compsitions, remains an interesting topic. This is a praticularly interesting problem
 if seen in the scenario of creating assistive tools for composers: both experienced and non experienced ones would benefit by these tools in order to improve creativity and exploration of genres.
 What we propose is a hybrid architecture that aims no only to model the placement of notes, but also their intensity and the evolution of the themaic they represent.
 \end{remark}
 
 \begin{remark}
-\textbf{Paper contribution:} In music generation, coherence is the main objective. That's why a simple RNN architecture seems to be the most tappropriate solution, as it's structure aims at learning sequences in order to predict the next values. However, MidiNet showed that convolutional GANs can overcome the issue
-                            of learning time related forgetting by using spatial conditioning, while achieving better performances regarding creativity, since the outputs directly come from random noise, thus allowing the network to generate new music from scratch. The network that we propose tries to combine these two point of view, by adding to the generation process a recurrent unit that will help in learning long-term relations. Additionally, we used a dataset that takes into account velocity (intensity of the notes). This means that
-                            the patterns that the network has to learn become much more complex and may not be captured if the network is not suitably structured to handle the new relations between notes.
+\textbf{Paper contribution:} In music generation, coherence is the main objective. That's why a simple RNN architecture seems to be the most tappropriate solution, as it's structure aims at learning sequences in order to predict the next values. However, MidiNet showed that convolutional GANs can overcome the issue. The main problem is that in this particular configuration, the discriminator tends to be better than the generator, eventually quickly reaching a stable 100\% accuracy. The network that we propose tries to enhance the capabilities of MidiNet by adding to the generation process a set of residual layers unit that should help in learning long-term relations. 
+                            Additionally, as suggested in MidiNet paper, we changed the loss function from a conventional cross-entropy to a Wasserstein loss, and in particular we chose the version that uses gradient penalty. The idea is to avoid vanishing gradients, which easily arise from the previous loss function.
                             Another relevant change with respect to the original MidiNet archtecture lies in the Discriminator network. In its input we propose the use of both the current and the previous bars from the dataset, in order to include in the discrimination process a similar approach to the one regarding the conditioner in the generator.
                             This changes aim to improve the quality of the game played by Generator and Discriminator, which should eventually lead to a more realistic result.
                         \end{remark}
