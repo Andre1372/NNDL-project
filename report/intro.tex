@@ -13,17 +13,17 @@ What we propose is a hybrid architecture that aims no only to model the placemen
 \begin{remark}
 \textbf{Paper contribution:} In music generation, coherence is the main objective. That's why a simple RNN architecture seems to be the most tappropriate solution, as it's structure aims at learning sequences in order to predict the next values. However, MidiNet showed that convolutional GANs can overcome the issue. The main problem is that in this particular configuration, the discriminator tends to be better than the generator, eventually quickly reaching a stable 100\% accuracy. The network that we propose tries to enhance the capabilities of MidiNet by adding to the generation process a set of residual layers unit that should help in learning long-term relations. 
                             Additionally, as suggested in MidiNet paper, we changed the loss function from a conventional cross-entropy to a Wasserstein loss, and in particular we chose the version that uses gradient penalty. The idea is to avoid vanishing gradients, which easily arise from the previous loss function.
-                            Another relevant change with respect to the original MidiNet archtecture lies in the Discriminator network. In its input we propose the use of both the current and the previous bars from the dataset, in order to include in the discrimination process a similar approach to the one regarding the conditioner in the generator.
+                            %Another relevant change with respect to the original MidiNet archtecture lies in the Discriminator network. In its input we propose the use of both the current and the previous bars from the dataset, in order to include in the discrimination process a similar approach to the one regarding the conditioner in the generator.
                             This changes aim to improve the quality of the game played by Generator and Discriminator, which should eventually lead to a more realistic result.
                         \end{remark}
 
 \begin{remark}
     \textbf{Summary of contributions:}
         \begin{itemize}
-            \item Hybrid Recurrent-Convolutional Network: We extended the convolutional MidiNet with a Gated Recurrent unit within the generator
-            \item Multi-Dimensional Conditioning: The model includes a dual-conditioning mechanism, which combines local features via the Discriminator and global thematic via the GRU
-            \item Modelling Velocity: Our network is built to include note only note placement, but also to choose their intensity. The goal is to improve the realness of the produced pieces.
-            \item Transition-aware Discriminator: We propose an improved adversarial game with an enhanced Discriminator that evaluates subsequent bars and chord embeddings.
+            \item WGAN-GP (Wasserstein GAN - Gradient Penalty): loss is modified to help longer and more complex relations to be learned
+            \item Residual Units: The generator is enriched with residual units to provide more direct flow of the gradient.
+            \item Da aggiungere
+            \item Da aggiungere
         \end{itemize}
 \end{remark}
 
