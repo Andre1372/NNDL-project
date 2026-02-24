@@ -7,14 +7,14 @@
 \textbf{Short Intro:} The task of generating music is a frontier in Artificial Intelligence, since it poses the challenge of training a network to be creative, but with the rigid constraints imposed by music theory.
 While some architectures are already capable of generating technically correct sequences, capturing the key points of realistic, human-like compsitions, remains an interesting topic. This is a praticularly interesting problem
 if seen in the scenario of creating assistive tools for composers: both experienced and non experienced ones would benefit by these tools in order to improve creativity and exploration of genres.
-What we propose is a hybrid architecture that aims no only to model the placement of notes, but also their intensity and the evolution of the themaic they represent.
+What we propose is an architecture that aims no only to model the placement of notes, but also the evolution of the themaic they represent.
 \end{remark}
 
 \begin{remark}
-\textbf{Paper contribution:} In music generation, coherence is the main objective. That's why a simple RNN architecture seems to be the most tappropriate solution, as it's structure aims at learning sequences in order to predict the next values. However, MidiNet showed that convolutional GANs can overcome the issue. The main problem is that in this particular configuration, the discriminator tends to be better than the generator, eventually quickly reaching a stable 100\% accuracy. The network that we propose tries to enhance the capabilities of MidiNet by adding to the generation process a set of residual layers unit that should help in learning long-term relations. 
-                            Additionally, as suggested in MidiNet paper, we changed the loss function from a conventional cross-entropy to a Wasserstein loss, and in particular we chose the version that uses gradient penalty. The idea is to avoid vanishing gradients, which easily arise from the previous loss function.
+\textbf{Paper contribution:} In music generation, coherence is the main objective. That's why a simple RNN architecture seems to be the most tappropriate solution, as it's structure aims at learning sequences in order to predict the next values. However, MidiNet \cite{Yang-2017} showed that convolutional GANs can overcome the issue. The main problem is that in this particular configuration, the discriminator tends to be better than the generator, eventually quickly reaching a stable 100\% accuracy. The network that we propose tries to enhance the capabilities of MidiNet by adding to the generation process a set of residual layers unit that should help in learning long-term relations. 
+                            Additionally, as suggested in MidiNet paper, we changed the loss function from a conventional cross-entropy to a Wasserstein loss, and in particular we chose the version that uses gradient penalty \cite{Gulrajani-2017}. The idea is to avoid vanishing gradients, which easily arise from the previous loss function.
                             %Another relevant change with respect to the original MidiNet archtecture lies in the Discriminator network. In its input we propose the use of both the current and the previous bars from the dataset, in order to include in the discrimination process a similar approach to the one regarding the conditioner in the generator.
-                            This changes aim to improve the quality of the game played by Generator and Discriminator, which should eventually lead to a more realistic result.
+                            This changes aim to improve the quality of the game played by Generator and Discriminator, forcing more balanced capabilities to both the structures, which should eventually lead to a more realistic result.
                         \end{remark}
 
 \begin{remark}
@@ -27,9 +27,11 @@ What we propose is a hybrid architecture that aims no only to model the placemen
         \end{itemize}
 \end{remark}
 
+
 \begin{remark}
-\textbf{How to organize your writeup with Latex:} I find it useful, especially for a paper with multiple authors, to split your manuscript into multiple source Latex files. This is very easily accomplished by having single {\it root} file, e.g., \texttt{main.tex}, where you define the article class, all the \mbox{user-defined} commands, the paper formatting options (e.g., one vs two columns, the page margins, the text size and the fonts, etc.). For this project, the root is called \texttt{template.tex}. From the root you then call, in sequential order, a number of other latex source files through the command \texttt{\textbackslash input\{filename.tex\}}. It is often convenient to have one of such files for each section of your paper. This facilitates editing multiple sections in parallel and keeping your project synchronized with some versioning and revision control system such as  or \texttt{git} or \texttt{overleaf} (highly recommended).
+\textbf{Closing:} In the paper we follow this structure. In Section II we describe the base model we started from, in section III we explain the dataset we used and the preprocessing techniques we adopted. In Section IV we explain our model and we conclude in Section V showing the results we obtained.
 \end{remark}
+
 
 \begin{remark}
 \textbf{Compiling trick:} For each source Latex file that you call from the main, I recommend you copy the following command in the very first line\\

@@ -5,6 +5,24 @@ import torch.nn as nn
 import pytorch_lightning as pl
 
 
+class MinibatchStdDev(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        # x: (B, C, H, W)
+        batch_size, channels, h, w = x.shape
+        # Calculate std across batch for each feature
+        # std shape: (1, C, H, W)
+        std = torch.std(x, dim=0, keepdim=True)
+        # Average std over all features
+        avg_std = torch.mean(std) # Scalar
+        # Expand back to (B, 1, H, W)
+        expanded_std = avg_std.expand(batch_size, 1, h, w)
+        # Concatenate on channel dim
+        return torch.cat([x, expanded_std], dim=1)
+
+
 class Generator(nn.Module):
     def __init__(self, input_size):
         super().__init__()
@@ -23,8 +41,6 @@ class Generator(nn.Module):
             nn.BatchNorm1d(512),
             nn.LeakyReLU(0.2),
         )
-
-        self.gru = nn.GRUCell(input_size=512, hidden_size=512)
 
         self.reshape_layer = nn.Unflatten(dim=1, unflattened_size=(256, 1, 2)) # 512 -> 256x1x2
 
@@ -83,24 +99,17 @@ class Generator(nn.Module):
         chord_expanded = chord_vec.view(b, self.chord_dim, 1, 1).expand(b, self.chord_dim, h, w)
         return torch.cat((feature_map, cond_map, chord_expanded), dim=1)
 
-    def forward(self, z, condition_matrix, chord_idx, hidden_state=None):
+    def forward(self, z, condition_matrix, chord_idx):
         # 1. Process Conditioning (Previous Bar)
         condition_step1 = self.cond_layer1(condition_matrix)
         condition_step2 = self.cond_layer2(condition_step1)
         condition_step3 = self.cond_layer3(condition_step2)
         condition_step4 = self.cond_layer4(condition_step3)
 
-        # 2. Update Temporal Memory (GRU)
-        gru_input = condition_step4.view(z.size(0), -1)
-        if hidden_state is None:
-            hidden_state = torch.zeros(z.size(0), 512).to(z.device)
-        
-        new_hidden_state = self.gru(gru_input, hidden_state)
-
-        # 3. Process Noise & Project
+        # 2. Process Noise & Project
         proj = self.project_process(z)
-        # Combine with memory and reshape
-        base_features = self.reshape_layer(proj) # + new_hidden_state # add to use gru
+        # Reshape to feature map
+        base_features = self.reshape_layer(proj)
         
         # 4. Generator Upsampling Steps
         chord_vec = self.chord_embedding(chord_idx)
@@ -133,45 +142,61 @@ class Discriminator(nn.Module):
         self.chord_dim = 12
         self.chord_embedding = nn.Embedding(num_embeddings=25, embedding_dim=self.chord_dim)
 
-        # Feature Extractor (Convolutional Layers)
+        # Feature Extractor (Progressive Convolutional Layers)
+        # Input: (1, 128, 16)
         self.conv_layers = nn.Sequential(
-            nn.Conv2d(1, 32, (128, 2), (1, 2)),
-            nn.InstanceNorm2d(32, affine=True),
+            # Stage 1: (1, 128, 16) -> (32, 64, 8)
+            nn.Conv2d(1, 32, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1)),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(32, 64, (1, 4), (1, 2)),
-            nn.InstanceNorm2d(64, affine=True),
-            nn.LeakyReLU(0.2, inplace=True)
+            
+            # Stage 2: (32, 64, 8) -> (64, 32, 4)
+            nn.Conv2d(32, 64, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1)),
+            nn.LeakyReLU(0.2, inplace=True),
+            
+            # Stage 3: (64, 32, 4) -> (128, 16, 2)
+            nn.Conv2d(64, 128, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1)),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            # Stage 4: (128, 16, 2) -> (256, 1, 1)
+            nn.Conv2d(128, 256, kernel_size=(16, 2), stride=1, padding=0),
+            nn.LeakyReLU(0.2, inplace=True),
         )
         
+        # Minibatch Standard Deviation (to counter mode collapse)
+        self.minibatch_std = MinibatchStdDev()
+        
         # Classifier (Fully Connected)
-        # Input features: 64 channels * 3 * 2 spatial + chord_dim
+        # Input features: (256 channels + 1 std_ch) * 1 * 1 spatial + chord_dim
+        # 257 + 12 = 269
         self.flatten = nn.Flatten()
         self.classifier = nn.Sequential(
-            nn.Linear(64*3 + self.chord_dim, 512),
-            nn.LayerNorm(512),
+            nn.Linear(256 + self.chord_dim, 256),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Dropout(0.3),
-            nn.Linear(512, 1)
+            nn.Linear(256, 1)
         )
 
     def forward(self, x, chord_idx):
         chord_vec = self.chord_embedding(chord_idx)
 
-        # Extract features
-        feat_curr = self.conv_layers(x)
+        # 1. Extract features with progressive convolutions
+        feat = self.conv_layers(x)
 
-        out_flat = self.flatten(feat_curr)
+        # 2. Add Minibatch StdDev for batch diversity analysis
+        #feat_with_std = self.minibatch_std(feat)
 
-        combined = torch.cat((out_flat, chord_vec), dim=1) # Shape: (B, 231 + 12)
+        # 3. Flatten and combine with chords
+        out_flat = self.flatten(feat)
+        combined = torch.cat((out_flat, chord_vec), dim=1)
         
-        # Classification
+        # 4. Classification
         validity = self.classifier(combined)
 
-        return validity, feat_curr
+        return validity, feat
     
 
 class PianoGAN(pl.LightningModule):
-    def __init__(self, noise_dim: int = 100, feature_matching_weight: float = 0.1, gradient_penalty_lambda: float = 10.0, n_critic: int = 5):
+    def __init__(self, noise_dim: int = 100, feature_matching_weight: float = 0.1, gradient_penalty_lambda: float = 10.0, n_critic=1):
         """ 
         Initialize the base model. 
         Args:
