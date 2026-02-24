@@ -16,13 +16,17 @@ At a high level, the pipeline consists of data ingestion, feature extraction (ch
 While the generative architecture and the learning mechanism will be detailed in Section \ref{sec:learning_framework}, this section focuses on the dataset selection and the preprocessing methodologies required to map the MIDI data into effective neural network inputs.
 
 \subsection{Dataset Selection}
-The dataset chosen to train our model is the Maestro V3.0.0 \cite{Maestro-V3}.
-This collection provides over 200 hours of virtuosic piano performances, already processed and formatted as MIDI files.
-The primary motivation behind this choice is consistency: the dataset exclusively features piano performances, and the tempo is standard (120 bpm).
-This temporal uniformity is a crucial property, as it allowed us to parse all MIDI files using a constant sampling frequency.
-Consequently, we obtained a homogeneous data distribution that reduces the variance unrelated to the actual musical composition, helping the model to better capture and reproduce the underlying melodic distribution.
+The dataset chosen to train our model is the Maestro V3.0.0 \cite{Maestro-V3}. This collection provides over 200 hours of virtuosic piano performances, already processed and formatted as MIDI files. 
+The primary motivation behind this choice is consistency: the dataset exclusively features piano performances, and the tempo is standardized (120 bpm). 
+This temporal uniformity is a crucial property, as it allowed us to parse all MIDI files using a constant sampling frequency. 
+Consequently, we obtained a homogeneous data distribution that reduces the variance unrelated to the actual musical composition, thereby helping the model to better capture and reproduce the underlying melodic distribution.
 
-\subsection{Data Representation and Formatting}
+To evaluate the Generative Adversarial Network (GAN) rigorously and prevent data leakage, we adopted a hybrid dataset splitting approach built upon this homogeneous corpus:
+\begin{itemize}
+    \item \textbf{Test Set:} Prior to any preprocessing or segmentation, a subset of three complete MIDI files from the Maestro dataset was strictly isolated. These completely unseen tracks are reserved exclusively for the final Conditioned Autoregressive Generation evaluation. Crucially, they provide the priming bar and the ground-truth harmonic progression required to properly constrain the generation process.
+    \item \textbf{Training and Validation Sets:} The remainder of the musical corpus was processed into fixed-length matrices and randomly partitioned into a Training Set (90$\%$) and a Validation Set (10$\%$). The training set is utilized for weight optimization over \textbf{[number of epochs]} epochs. Concurrently, the validation set serves to monitor training stability over time.
+\end{itemize}
+
 Although MIDI files are structured, they are inherently event-based and highly polyphonic, making them unsuitable for direct ingestion into standard convolutional layers.
 Following the guidelines of related works in symbolic music generation \cite{Yang-2017}, we mapped the data into a 2-D matrix (piano roll) representation.
 
