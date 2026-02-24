@@ -2,3 +2,40 @@
 
 \section{Learning Framework}
 \label{sec:learning_framework}
+
+\subsection{Model Architecture}
+\label{sec:model_architecture}
+
+\subsection{Wasserstein Loss and Gradient Penalty}
+\label{sec:wasserstein_loss}
+
+We start from the output of the discriminator $D(x)$. The forward pass does not compute the final sigmoid activation, which shrinks the output values to the range $[0, 1]$ to assign the probability.
+
+To compute generator and discriminator losses, we use the following formulas:
+\begin{equation}
+    L_D = \mathbb{E}_{\tilde{x} \sim P_g}[D(\tilde{x})] - \mathbb{E}_{x \sim P_r}[D(x)]
+\end{equation}
+\begin{equation}
+    L_G = -\mathbb{E}_{\tilde{x} \sim P_g}[D(\tilde{x})]
+\end{equation}
+
+Where we can see that the both losses become linear with respect to the critic output, avoiding null gradients enforced by a Sigmoid.
+
+Regarding the Gradient Penalty, it is introduced to enforce the Lipschitz constraint on the discriminator, which acts as a regularization term on the gradient norm. The total loss of the discriminatore is then computed as:
+\begin{equation}
+\begin{split}
+    L = &\underbrace{\mathbb{E}_{\tilde{x} \sim P_g}[D(\tilde{x})] - \mathbb{E}_{x \sim P_r}[D(x)]}_{\text{Wasserstein Loss}} \\
+    &+ \underbrace{\lambda \mathbb{E}_{\hat{x} \sim P_{\hat{x}}} \left[ \left( \|\nabla_{\hat{x}} D(\hat{x})\|_2 - 1 \right)^2 \right]}_{\text{Gradient Penalty}}
+\end{split}
+\end{equation}
+
+Note that $\hat{x}$ is a sampled taken from a random interpolation between real and fake samples. It can be seen as a random point along the line connecting the two distributions. This forces the Discriminator to keep small gradients along the trajectories connecting real and fake samples.
+
+\subsection{Hyperparameter tuning}
+The training was influenced mainly by three hyperparameters:
+\begin{enumerate}
+    \item \textbf{Gradient penalty coefficient ($\lambda$):} This parameter was never modified and was always set to $10.0$ as in the original paper.
+    \item \textbf{Feature matching weight ($w_{fm}$):} This parameter has the same function as the one presented in MidiNet. However, during the last trainings we set it to a very low value since we noted it could cause mode collapse, as it allows the generator to give less importance to the adversarial loss.
+    \item \textbf{Number of critic steps per generator step ($n_c$):} This parameter was fundamental after the change of loss function and critic structure, as it allowed us to balance the training of the two networks. We noticed that a value between 3 and 5 was optimal for the training, to allow the discriminator to learn enough to provide useful gradients to the generator, which otherwise tended to collapse
+\end{enumerate}
+\label{sec:hyperparameter_tuning}

@@ -2,4 +2,7 @@
 
 \section{Related Work}
 \label{sec:related_work}
-
+Our network is based on the MidiNet architecture \cite{Yang-2017}. 
+What this architecture introduced is the idea of conditioning the generation process by combining the outputs of convolutional layer of the Conditioner network to the input of the layers of the Generator.
+In this way the network is able to produce music coherent with previous bars. However, while training an exact copy of the network we noted the typical struggles of GANs: the Discriminator was quickly able to distinguish real from fake music, leading to a completely random Generation process.
+Our work then focused on finding ways to improve the balance between the two networks. The main idea was the modification of the loss function. As already said, the MidiNet paper opens to the possibiliy of changing to a loss that avoids vanishing gradients, which is the one we chose in our network 
