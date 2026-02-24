@@ -3,60 +3,22 @@
 \section{Introduction}
 \label{sec:introduction}
 
-\begin{remark}
-\textbf{Short Intro:} The task of generating music is a frontier in Artificial Intelligence, since it poses the challenge of training a network to be creative, but with the rigid constraints imposed by music theory.
+The task of generating music is a frontier in Artificial Intelligence, since it poses the challenge of training a network to be creative, but with the rigid constraints imposed by music theory.
 While some architectures are already capable of generating technically correct sequences, capturing the key points of realistic, human-like compsitions, remains an interesting topic. This is a praticularly interesting problem
 if seen in the scenario of creating assistive tools for composers: both experienced and non experienced ones would benefit by these tools in order to improve creativity and exploration of genres.
 What we propose is an architecture that aims no only to model the placement of notes, but also the evolution of the themaic they represent.
-\end{remark}
 
-\begin{remark}
-\textbf{Paper contribution:} In music generation, coherence is the main objective. That's why a simple RNN architecture seems to be the most tappropriate solution, as it's structure aims at learning sequences in order to predict the next values. However, MidiNet \cite{Yang-2017} showed that convolutional GANs can overcome the issue. The main problem is that in this particular configuration, the discriminator tends to be better than the generator, eventually quickly reaching a stable 100\% accuracy. The network that we propose tries to enhance the capabilities of MidiNet by adding to the generation process a set of residual layers unit that should help in learning long-term relations. 
-                            Additionally, as suggested in MidiNet paper, we changed the loss function from a conventional cross-entropy to a Wasserstein loss, and in particular we chose the version that uses gradient penalty \cite{Gulrajani-2017}. The idea is to avoid vanishing gradients, which easily arise from the previous loss function.
-                            %Another relevant change with respect to the original MidiNet archtecture lies in the Discriminator network. In its input we propose the use of both the current and the previous bars from the dataset, in order to include in the discrimination process a similar approach to the one regarding the conditioner in the generator.
-                            This changes aim to improve the quality of the game played by Generator and Discriminator, forcing more balanced capabilities to both the structures, which should eventually lead to a more realistic result.
-                        \end{remark}
+In music generation, coherence is the main objective. That's why a simple RNN architecture seems to be the most tappropriate solution, as it's structure aims at learning sequences in order to predict the next values. However, MidiNet \cite{Yang-2017} showed that convolutional GANs can overcome the issue. The main problem is that in this particular configuration, the discriminator tends to be better than the generator, eventually quickly reaching a stable 100\% accuracy. The network that we propose tries to enhance the capabilities of MidiNet by adding to the generation process a set of residual layers unit that should help in learning long-term relations.
+Additionally, as suggested in MidiNet paper, we changed the loss function from a conventional cross-entropy to a Wasserstein loss, and in particular we chose the version that uses gradient penalty \cite{Gulrajani-2017, Arjovsky-2017}. The idea is to avoid vanishing gradients, which easily arise from the previous loss function.
+%Another relevant change with respect to the original MidiNet archtecture lies in the Discriminator network. In its input we propose the use of both the current and the previous bars from the dataset, in order to include in the discrimination process a similar approach to the one regarding the conditioner in the generator.
+This changes aim to improve the quality of the game played by Generator and Discriminator, forcing more balanced capabilities to both the structures, which should eventually lead to a more realistic result.
 
-\begin{remark}
-    \textbf{Summary of contributions:}
-        \begin{itemize}
-            \item WGAN-GP (Wasserstein GAN - Gradient Penalty): loss is modified to help longer and more complex relations to be learned
-            \item Residual Units: The generator is enriched with residual units to provide more direct flow of the gradient.
-            \item Da aggiungere
-            \item Da aggiungere
-        \end{itemize}
-\end{remark}
-
-
-\begin{remark}
-\textbf{Closing:} In the paper we follow this structure. In Section II we describe the base model we started from, in section III we explain the dataset we used and the preprocessing techniques we adopted. In Section IV we explain our model and we conclude in Section V showing the results we obtained.
-\end{remark}
-
-
-\begin{remark}
-\textbf{Compiling trick:} For each source Latex file that you call from the main, I recommend you copy the following command in the very first line\\
-\texttt{\% !TEX root = template.tex}\\
-where \texttt{template.tex} is the name of the root Latex file. This command tells the Latex compiler that your main root file is \texttt{template.tex}, and it makes it possible to compile the paper from any of the sub-files. Example: imagine you are editing \texttt{introduction.tex} and have that open in a window of your preferred Latex editor. With this command, you can compile from the local \texttt{introduction.tex} window, without having to open and switch every time to the root file window and compile from it. This will save you hours.  
-\end{remark}
-
-\red{Maximum length for the whole report is 6 pages. Abstract, introduction and related work should take max 1 or 1.5 pages.}\\
-
-\noindent \textbf{Recommended structure for the intro:} you may use the following structure. 
+\textbf{Summary of contributions:}
 \begin{itemize}
-% \item \textbf{General (short) intro:} One paragraph to introduce your work, describing the scenario {\it at large}, its relevance, to prepare the reader to what follows and convince her/him that the paper focuses on an important setup/problem. Please keep this part short (I usually do five to eight lines), as this part is rather standard, \textbf{but} at the same time it has to be there. 
-% \item \textbf{Put the problem into perspective:} A second paragraph where you immediately delve into the specific problem that you are tackling, starting to detail your contribution. Here, you describe the importance of such problem, providing examples (citing papers from the literature, possibly recent ones) of previous solutions attempts, and of why these failed {\it to provide a complete answer}. This second paragraph should not be too long, as otherwise the reader will get bored and will abandon your paper... It should be concisely written, something like 5 to 10 lines.
-\item \textbf{Present the paper contribution:} A third paragraph were you state what you do in the paper, this should also be concisely written. A good rule of thumb is to make it max 10/15 lines. Here, you should state up front:
-\begin{enumerate}
-\item \textbf{problem}: the problem at stake, 
-\item \textbf{relevance}: the relevance and timeliness of what you propose, 
-\item \textbf{approach}: the technique/approach you use, possibly underlying its novelty, efficiency, 
-\item \textbf{value}: underline the value/novelty of your proposal referencing (recent) papers from the literature,
-\item \textbf{applicability}: tell the reader how she/he can take advantage of your work, e.g., how your work/results can be reused/exploited to achieve further scientific, technical or practical (integrated into products?) goals.
-\end{enumerate}
-\item \textbf{Summary of contributions:} After this, you may want to provide an itemized list to summarize the paper contributions. Rule of thumb: from three to six items, from three to four lines each.
-\item \textbf{Closing (paper structure):} You finish up by detailing the paper structure, this should be three to four lines. It is customary to do so, although I admit it may be of little use. It usually goes like: {\it ``This report (paper) is structured as follows. In Section II we describe the state of the art, the system and data models are respectively presented in Sections~III and~IV. The proposed signal processing technique is detailed in Section~V and its performance evaluation is carried out in Section~VI. Concluding remarks are provided in Section~VII.''}
+    \item WGAN-GP (Wasserstein GAN - Gradient Penalty): loss is modified to help longer and more complex relations to be learned
+    \item Residual Units: The generator is enriched with residual units to provide more direct flow of the gradient.
+    \item Da aggiungere
+    \item Da aggiungere
 \end{itemize}
 
-\begin{remark} 
-Lately, I tend to write introduction plus abstract within a single page. This forces me to focus on the important messages that I want to deliver about the paper, leaving out all the ``blah blah''. \textbf{Remember:} 1) {\it less is more}, 2) writing a compact ({\it snappy}) piece of technical text is much more difficult than writing lengthy stuff with no space constraints.
-\end{remark}
+In the paper we follow this structure. In Section II we describe the base model we started from, in section III we explain the dataset we used and the preprocessing techniques we adopted. In Section IV we explain our model and we conclude in Section V showing the results we obtained.
