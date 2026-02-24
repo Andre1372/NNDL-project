@@ -170,7 +170,7 @@ class Discriminator(nn.Module):
         # 257 + 12 = 269
         self.flatten = nn.Flatten()
         self.classifier = nn.Sequential(
-            nn.Linear(256 + self.chord_dim, 256),
+            nn.Linear(257 + self.chord_dim, 256),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Dropout(0.3),
             nn.Linear(256, 1)
@@ -183,10 +183,10 @@ class Discriminator(nn.Module):
         feat = self.conv_layers(x)
 
         # 2. Add Minibatch StdDev for batch diversity analysis
-        #feat_with_std = self.minibatch_std(feat)
+        feat_with_std = self.minibatch_std(feat)
 
         # 3. Flatten and combine with chords
-        out_flat = self.flatten(feat)
+        out_flat = self.flatten(feat_with_std)
         combined = torch.cat((out_flat, chord_vec), dim=1)
         
         # 4. Classification
@@ -196,7 +196,7 @@ class Discriminator(nn.Module):
     
 
 class PianoGAN(pl.LightningModule):
-    def __init__(self, noise_dim: int = 100, feature_matching_weight: float = 0.1, gradient_penalty_lambda: float = 10.0, n_critic=1):
+    def __init__(self, noise_dim: int = 100, feature_matching_weight: float = 0.1, gradient_penalty_lambda: float = 10.0, n_critic=3):
         """ 
         Initialize the base model. 
         Args:
