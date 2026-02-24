@@ -196,7 +196,7 @@ class Discriminator(nn.Module):
     
 
 class PianoGAN(pl.LightningModule):
-    def __init__(self, noise_dim: int = 100, feature_matching_weight: float = 0.1, gradient_penalty_lambda: float = 10.0, n_critic=5):
+    def __init__(self, noise_dim: int = 100, feature_matching_weight: float = 0.0, gradient_penalty_lambda: float = 10.0, n_critic=5):
         """ 
         Initialize the base model. 
         Args:
@@ -235,7 +235,7 @@ class PianoGAN(pl.LightningModule):
         # Learning Rate del Generatore (più basso per stabilità WGAN)
         lr_g = 0.0001
         # Learning Rate del Discriminatore (più alto per stima Wasserstein ottimale - TTUR)
-        lr_d = 0.0002
+        lr_d = 0.0001
 
         opt_g = torch.optim.RMSprop(self.generator.parameters(), lr=lr_g)
         opt_d = torch.optim.RMSprop(self.discriminator.parameters(), lr=lr_d)
