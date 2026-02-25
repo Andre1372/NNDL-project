@@ -1,19 +1,21 @@
 % !TEX root = template.tex
 
+\begin{figure*}[!t]
+    \centering
+    \fcolorbox{gray}{white}{%
+        \resizebox{\textwidth}{!}{
+            \input{model_architecture_diagram.tex}
+        }
+    }
+    \caption{Model architecture: Generator with conditioner (left) and Critic (right).}
+    \label{fig:model_architecture}
+\end{figure*}
+
 \section{Learning Framework}
 \label{sec:learning_framework}
 
 \subsection{Model Architecture}
 \label{sec:model_architecture}
-
-\begin{figure*}[h]
-    \centering
-    \resizebox{\textwidth}{!}{
-        \input{model_architecture_diagram.tex}
-    }
-    \caption{Model architecture: Generator with conditioner (left) and Discriminator CNN (right).}
-    \label{fig:model_architecture}
-\end{figure*}
 
 \subsection{Wasserstein Loss and Gradient Penalty}
 \label{sec:wasserstein_loss}

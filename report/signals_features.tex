@@ -3,14 +3,6 @@
 \section{Signals \& Features}
 \label{sec:signals_features}
 
-% TODO: Inserisci qui il diagramma a blocchi completo
-% \begin{figure}[htbp]
-%     \centering
-%     \includegraphics[width=\columnwidth]{figures/pipeline_diagram.pdf}
-%     \caption{High-level overview of the proposed system. This section details the data extraction and preprocessing blocks, while the WGAN-GP learning mechanism is discussed in Section \ref{sec:learning_mechanism}.}
-%     \label{fig:pipeline}
-% \end{figure}
-
 To generate coherent symbolic-domain music, our system relies on a pipeline that processes MIDI files into a highly structured matrix representation, suitable for training a Deep Convolutional Generative Adversarial Network (DCGAN).
 At a high level, the pipeline consists of data ingestion, feature extraction (chords and monophonic melodies), formatting, and adversarial training.
 While the generative architecture and the learning mechanism will be detailed in Section \ref{sec:learning_framework}, this section focuses on the dataset selection and the preprocessing methodologies required to map the MIDI data into effective neural network inputs.
