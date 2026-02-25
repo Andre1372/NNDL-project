@@ -16,9 +16,9 @@ At a high level, the pipeline consists of data ingestion, feature extraction (ch
 While the generative architecture and the learning mechanism will be detailed in Section \ref{sec:learning_framework}, this section focuses on the dataset selection and the preprocessing methodologies required to map the MIDI data into effective neural network inputs.
 
 \subsection{Dataset Selection}
-The dataset chosen to train our model is the Maestro V3.0.0 \cite{Maestro-V3}. This collection provides over 200 hours of virtuosic piano performances, already processed and formatted as MIDI files. 
-The primary motivation behind this choice is consistency: the dataset exclusively features piano performances, and the tempo is standardized (120 bpm). 
-This temporal uniformity is a crucial property, as it allowed us to parse all MIDI files using a constant sampling frequency. 
+The dataset chosen to train our model is the Maestro V3.0.0 \cite{Maestro-V3}. This collection provides over 200 hours of virtuosic piano performances, already processed and formatted as MIDI files.
+The primary motivation behind this choice is consistency: the dataset exclusively features piano performances, and the tempo is standardized (120 bpm).
+This temporal uniformity is a crucial property, as it allowed us to parse all MIDI files using a constant sampling frequency.
 Consequently, we obtained a homogeneous data distribution that reduces the variance unrelated to the actual musical composition, thereby helping the model to better capture and reproduce the underlying melodic distribution.
 
 To evaluate the Generative Adversarial Network (GAN) rigorously and prevent data leakage, we adopted a hybrid dataset splitting approach built upon this homogeneous corpus:

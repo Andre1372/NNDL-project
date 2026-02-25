@@ -6,6 +6,15 @@
 \subsection{Model Architecture}
 \label{sec:model_architecture}
 
+\begin{figure*}[h]
+    \centering
+    \resizebox{\textwidth}{!}{
+        \input{model_architecture_diagram.tex}
+    }
+    \caption{Model architecture: Generator with conditioner (left) and Discriminator CNN (right).}
+    \label{fig:model_architecture}
+\end{figure*}
+
 \subsection{Wasserstein Loss and Gradient Penalty}
 \label{sec:wasserstein_loss}
 
@@ -23,10 +32,10 @@ Where we can see that the both losses become linear with respect to the critic o
 
 Regarding the Gradient Penalty, it is introduced to enforce the Lipschitz constraint on the discriminator, which acts as a regularization term on the gradient norm. The total loss of the discriminatore is then computed as:
 \begin{equation}
-\begin{split}
-    L = &\underbrace{\mathbb{E}_{\tilde{x} \sim P_g}[D(\tilde{x})] - \mathbb{E}_{x \sim P_r}[D(x)]}_{\text{Wasserstein Loss}} \\
-    &+ \underbrace{\lambda \mathbb{E}_{\hat{x} \sim P_{\hat{x}}} \left[ \left( \|\nabla_{\hat{x}} D(\hat{x})\|_2 - 1 \right)^2 \right]}_{\text{Gradient Penalty}}
-\end{split}
+    \begin{split}
+        L = & \underbrace{\mathbb{E}_{\tilde{x} \sim P_g}[D(\tilde{x})] - \mathbb{E}_{x \sim P_r}[D(x)]}_{\text{Wasserstein Loss}}                                         \\
+            & + \underbrace{\lambda \mathbb{E}_{\hat{x} \sim P_{\hat{x}}} \left[ \left( \|\nabla_{\hat{x}} D(\hat{x})\|_2 - 1 \right)^2 \right]}_{\text{Gradient Penalty}}
+    \end{split}
 \end{equation}
 
 Note that $\hat{x}$ is a sampled taken from a random interpolation between real and fake samples. It can be seen as a random point along the line connecting the two distributions. This forces the Discriminator to keep small gradients along the trajectories connecting real and fake samples.
