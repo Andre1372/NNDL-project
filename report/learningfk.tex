@@ -17,6 +17,13 @@
 \subsection{Model Architecture}
 \label{sec:model_architecture}
 
+The noise given as inpute to the Generator $G$ is first processed throught two fully-connected layers, of $1024$ and $512$ neurons respectively, and then reshaped in a tensor of shape $(1, 256, 1, 2)$.
+This is then followed by four convolutional layers, where at each stage a chord embedding $c \in \mathbb{R}^{12}$ is concatenated to the feature maps. The first three layers use filters of shape $(1, 2)$ and stride $2$, doubling the temporal dimesion at each step. To avoid vanishing gradients and ensure more stability, we integrated a Residual Block after each upsampling layer.
+Finally, a transposed convolution with kernel $128 \times 1$ followed by a sigmoid activation procues the final bar of shape $128 \times 16$.
+
+The Conditioner stricly follows the structure described in \cite{Yang-2017}. The aim is to enforce temporal continuity by conditioning the Generator on the previous bar. Its structure mirrors the one of the Generator. The output of each layer is concatenated with the corresponding Generator step along with its upsampling path.
+
+Finally, the Critic is composed of four convolutional layers, with filters of shape $(4, 4)$ and stride $2$. The idea is to progressiveli extract features from the input bar, reducing spatial dimension from $128 \times 16$ to $1 \times 1$ with $256$ channels. Additnionally, we included a Minibatch Standard Deviation layer after the final convolutional stage. Its aim is to provide the network with a statistical information about the batch diversity, resulting in a scalar that is concatenated with the extracted features. These are then flattened, concatenated to the chord embedding and passed through a final fully connected layer, which outputs a single scalar value. Here we removed the Sigmoid activation, as it was not needed for the loss function we used.
 \subsection{Wasserstein Loss and Gradient Penalty}
 \label{sec:wasserstein_loss}
 
