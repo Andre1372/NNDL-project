@@ -4,7 +4,7 @@ import torch.onnx
 import pytorch_lightning as pl
 
 # =================================================================================
-# 1. DEFINIZIONE DELLE CLASSI (Codice fornito da te)
+# 1. DEFINIZIONE DELLE CLASSI !! codice vecchio, non lo abbiamo usato alla fine
 # =================================================================================
 
 class BaseModel(pl.LightningModule):

@@ -358,6 +358,9 @@ class PianoGAN(pl.LightningModule):
         self.log("val_g_fm", val_g_fm, prog_bar=True)
         
     def test_step(self, batch, batch_idx):
+        ''' test su istogrammi di distribuzione delle note
+            questa metrica non l'abbiamo usata nel paper
+        '''
         prev_bars, _, chord_idx = batch
         batch_size = prev_bars.size(0)
 

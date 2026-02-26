@@ -96,9 +96,6 @@ def process_to_monophonic_continuous(piano_roll: np.ndarray) -> np.ndarray:
             # Selezioniamo il pitch più alto (tipico della melodia principale)
             highest_pitch = np.max(active_pitches)
             monophonic_roll[highest_pitch, t] = 1.0
-
-    # 2. STRATEGIA "PROLONGING & FILLING" (Sezione 4.1 del paper)
-    # Se si vuole reintrodurre la continuità forzata, decommentare le righe seguenti.
     
     # # A. Riempimento in avanti (Forward Fill): prolunga le note nelle pause successive
     for t in range(1, w):

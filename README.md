@@ -112,14 +112,10 @@ NNDL-project/
 └── requirements.txt       # Dipendenze Python
 ```
 
-### 5. Come usare il progetto e fare test iniziali
+### 5. Come testare i modelli
 
-Il progetto è strutturato in modo che tutte le classi e funzioni vengano definite all'interno di _\src_. Tutti i test e il main code viene scritto all'interno di _\notebooks_. Quindi i notebook sono i main file mentre tutto lo scheletro del progetto è nella cartella _\src_.
-
-Sono già presenti 4 notebooks che sono utili per capire cosa è stato fatto fin ora. Potreste eseguirli e visualizzarli nel seguente ordine:
-
-1. `hardware_test.ipynb` per testare la corretta installazione di pytorch e la potenza di calcolo del computer.
-2. `Tutorial_pretty_midi_library.ipynb` fatto da Colin Raffel ed è utile per capire cosa può fare la sua libreria. Dateci uno sguardo veloce, non è troppo importante.
-3. `example_audio.ipynb` per vedere come creare il dataset di MIDI files.
-4. `example_usage.ipynb` per un esempio della struttura complessiva di training, saving e visualization di un modello Pytorch Lightning.
+Dal file `notebooks/main_testing.ipynb`  è possibile testare i modelli.
+Ne lasciamo due caricati nella cartella checkpoints:
+ - Best model: best_model.ckpt
+ - Last model: last_model.ckpt
 
