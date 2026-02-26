@@ -8,16 +8,18 @@ This is a particularly interesting problem if seen in the scenario of creating a
 What we propose is an architecture that aims not only to model the placement of notes, but also the evolution of the themes they represent. 
 In music generation, coherence is the main objective. 
 For this reason, a simple RNN architecture seems to be the most appropriate solution, as its structure aims at learning sequences in order to predict the next values. 
-However, MidiNet \cite{Yang-2017} showed that convolutional GANs can overcome the issue. 
-The main problem is that in this particular configuration, the discriminator tends to outperform the generator, rapidly reaching a high and stable accuracy.
+However, MidiNet \cite{Yang-2017} showed that convolutional GANs can also be effective in this task, as the generation process is more creative due to the random noises given as input to the generator. 
+However, in this kind of network, the main problem is that the discriminator tends to outperform the generator, rapidly reaching a high and stable accuracy.
 The network that we propose tries to enhance the capabilities of MidiNet by adding to the generation process a set of residual units that should help in learning long-term relations. 
 Additionally, as mentioned in the MidiNet paper, to avoid the vanishing gradient problem, we changed the loss function from a conventional cross-entropy to a Wasserstein loss, specifically choosing the version that uses gradient penalty \cite{Gulrajani-2017, Arjovsky-2017}. 
-In this scenario, the Discriminator works as a Critic, which assigns a score of realism (not a probability) to the generated music. 
+In this scenario, the Discriminator works as a Critic, assigning a score of realism (not a probability) to the generated music. 
 Finally, we also modified the critic network with an improved set of convolutional layers, to enhance its capability of extracting the relevant features from the music. 
-These changes aim to improve the quality of the game played by the Generator and Discriminator, forcing more balanced capabilities in both structures, which should eventually lead to a more realistic result.
-\textbf{Summary of contributions:}
+These changes aim to improve the quality of the game played by the Generator and Critic, forcing more balanced capabilities in both structures, which should eventually allow for longer training and a more realistic result.
+
+
+Our contributions can be summarized as follows:
 \begin{itemize}
-    \item WGAN-GP (Wasserstein GAN - Gradient Penalty): loss is modified to help longer and more stable training
+    \item WGAN-GP (Wasserstein GAN - Gradient Penalty): loss is modified to help longer and more stable training.
     \item Residual Units: The generator is enriched with residual units to provide more direct flow of the gradient.
     \item Critic structure: the structure of the critic is improved to enable more effective feature extraction.
     \item Minibatch Standard Deviation: the critic is enriched with a minibatch standard deviation layer which provides statistical information about the produced music.
@@ -26,5 +28,5 @@ These changes aim to improve the quality of the game played by the Generator and
 In the paper we follow this structure.
 In Section II we describe the base model we started from, in section III we explain the general processing pipeline.
 In Section IV we describe the dataset we used and the preprocessing techniques we adopted.
-In Section V we explain our model and we conclude in Section VI showing the results we obtained.
+In Section V we explain our model and we proceed in Section VI showing the results we obtained.
 Finally, some concluding remarks are provided in Section VII.
