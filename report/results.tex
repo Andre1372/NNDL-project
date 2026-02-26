@@ -7,8 +7,16 @@ The results we show span the various architectures and methods we tried during t
 
 \subsection{Baseline Model with BCE loss}
 In this first experiment we trained the baseline model with BCE loss. 
-In \textbf{inserire figura} we show the curves of the accuracy of the Discriminator. We can see that after just a few epochs this curve directly went to 1, meaniing that the Generator was never able to produce valid bars of music.
-The most delayed curve is the one corresponding to the introduction of the residual layers. Here the accuracy was able to stay around 0.5 for a few epochs, but then eventually collapsed to 1. Here, the musi produced was completely random.
+In Fig.~\ref{fig:accuracy_bce} we show the curves of the accuracy of the Discriminator. We can see that after just a few epochs this curve directly went to 1, meaning that the Generator was never able to produce valid bars of music.
+
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width=\linewidth]{images/accuracy_BCE.png}
+    \caption{Discriminator accuracy during the baseline training with BCE loss. The rapid convergence to 1 indicates that the Generator was immediately outperformed, leading to vanishing gradients.}
+    \label{fig:accuracy_bce}
+\end{figure}
+
+The most delayed curve is the one corresponding to the introduction of the residual layers. Here the accuracy was able to stay around 0.5 for a few epochs, but then eventually collapsed to 1. Here, the music produced was completely random.
 
 \subsection{Improved Model with WGAN-GP loss}
 The next step was the introduction of the WGAN-GP loss. Now, additionally to the generator and critic losses, we also tracked the \textit{Wasserstein distance estimation} and the \textit{feature matching loss}.
