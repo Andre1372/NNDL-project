@@ -5,7 +5,7 @@
 
 This section provides a high-level overview of the proposed processing pipeline, detailing the core functional blocks and their interrelations.
 Our system addresses the task of symbolic music generation by employing a conditioned Generative Adversarial Network (GAN) architecture.
-As illustrated in the system diagram (Figure~\ref{fig:architecture}), the overall pipeline revolves around three major interconnected components: a Generator, a Conditioner, and a Critic.
+As illustrated in the system diagram (Figure~\ref{fig:model_architecture}), the overall pipeline revolves around three major interconnected components: a Generator, a Conditioner, and a Critic.
 
 The primary objective of the network is to synthesize coherent and harmonically constrained musical passages represented as piano rolls.
 This is formulated as an adversarial minimax game: the Generator attempts to produce increasingly realistic music to deceive the Critic, while the Critic is trained to evaluate the realism of a piano roll.
@@ -25,8 +25,8 @@ The proposed framework is structured around the following underlying modules:
       \item \textbf{Critic CNN:} The Critic is designed as a Convolutional Neural Network.
             To counteract the well-known challenge of mode collapse in GANs, preliminary efforts involved adopting feature matching and one-sided label smoothing as suggested by \cite{Yang-2017}.
             Finding these measures insufficient for our specific task, we augmented our pipeline with a minibatch discrimination block.
-            By computing the standard deviation of each feature across the entire batch (producing a scalar summary ${s = \text{mean}_{c,h,w}(\text{std}_{b}(I_{b,c,h,w}))}$) and providing it to the Critic as an additional channel, the network gains a statistical overview of the batch diversity.
-            This strategy penalizes the Generator if it attempts to collapse onto a single repetitive mode.
+            Specifically, this layer takes as input the feature map $I \in \mathbb{R}^{B \times C \times H \times W}$, where $B$ is the batch size, $C$ the number of channels, and $H, W$ the spatial dimensions and computes the standard deviation across the batch dimension for each feature. These standard deviations are then averaged to produce a single scalar $s$, which represents the overall diversity of the current batch. This scalar is then concatenated to the original features.
+            This strategy penalizes the Generator if it attempts to collapse onto a single repetitive mode, which is obviously seen as a symptom of mode collapse.
 \end{itemize}
 
 Detailed descriptions of each module, including layer configurations and the formalization of the adversarial objective (Section~\ref{sec:wasserstein_loss}), are provided in the following sections.

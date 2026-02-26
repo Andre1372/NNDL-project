@@ -116,15 +116,11 @@
 \maketitle
 
 \begin{abstract}
-  % In the field of generative AI, the task of music generation is heavily conditioned by the need of training a network that not only provides notes, but is able to produce pieces of music made of a coherent sequence of notes, and may be good for the human ear.
-  % The network we developed is a Generative Adversarial Network (GAN) inspired by MidiNet (qua va aggiunta la reference) that is modified by including a Contitioner network inside the Generator (CGAN) and a Gated Recurrent Unit (GRU).
-  % The Conditioner uses features extracted from previously generated bars and feeds them to the Generator at each layer, providing a guide to maintain musical context.
-  % The Recurrent Unit is able to maintain an hidden state that, combined with the features extracted by the Conditioner, is able to maintain a theme of the piece of music that is being generated.
-  % This theme is combined with the Conditioner's features at the beginning of the generation process, forcing the network to maintain coherent melodies.
-
-  % The result is an integration of recurrent memory and convolutional layers that leads to improved thematic coherence.
-  % While limited to short piano music, improvements on this architecture could lead to the generation of more complex and multi-instrumental compositions\\
-
+  In the field of generative AI, the task of music generation is heavily conditioned by the need of training a network that not only provides notes, but is able to produce pieces of music made of a coherent sequence of notes, and may be good for the human ear.
+  Inspired by Midinet \cite{Yang-2017}, our system is a conditioned Generative Adversarial Network (GAN) is enhanced with a set of residual blocks and a dedicated Conditioner network that extracts features from previous bars to ensure temporal continuity.
+  To produce a stable learning process, we adopt a Wasserstein loss with gradient penalty (WGAN-GP), replacing the standard binary cross-entropy. Also, the Critic (as we will call the Discriminator network, due to the new loss function) is enhanched with a Minibatch Standard Deviation layer, which provides information that help in penalizing repetitive outputs.
+  The result is an integration of recurrent memory and convolutional layers that leads to improved thematic coherence.
+  The integration of these systems is used to produce piano music from an underlying chord progression, genrating coherent music.
   %\MR{This is an example abstract from a paper we wrote a couple of years ago. I would say an abstract should not be longer than $250$ words. Here, you should briefly state: 
   %\begin{enumerate}
   %\item the technical scenario/field of research and its timeliness/relevance in general (one sentence),
@@ -132,16 +128,16 @@
   %\item summarize the main and best results of your study/proposal/method (one or two sentences),
   %\item (optional) how others could benefit from your results for further research, or within commercial products (one sentence).
   %\end{enumerate}  
-  %The abstract is one of the most important parts of the paper/report. You have roughly one minute to catch the reader's attention. A poor abstract may already move you towards the rejection side in the reviewer's decision process. In the abstract, 1) establish the context, 2) motivate the problem, 3) briefly describe the solution, and 4) present the main results of your work. Ideally, use one (short) sentence for each of the previously mentioned items to keep your abstract short. Overall, this should be a short summary of the whole content of your paper, including your results.}\\
+  %The abstract is one of the most important parts of the paper/report. You have roughly one minute to catch the reader's attention. A poor abstract may already move you towards the rejection side in the reviewer's decision process. In the abstract, 1) establish the context, 2) motivate the problem, 3) briefly describe the solution, and 4) present the main results of your work. Ideally, use one (short) sentence for each of the previously mentioned items to keep your abstract short. Overall, this should be a short summary of the whole content of your paper, including your results.}
 
-  %\MR{See the abstract as a personal challenge for each of your papers. Finally, the abstract should contain the main message about your work, so that the reader will now what she/he can find even without reading it (as it is the case most of the times). The abstract is a mini-paper on its own and, as such, it is a major endeavor to write.}\\ 
+  %\MR{See the abstract as a personal challenge for each of your papers. Finally, the abstract should contain the main message about your work, so that the reader will now what she/he can find even without reading it (as it is the case most of the times). The abstract is a mini-paper on its own and, as such, it is a major endeavor to write.}
 
   \red{I suggest to write the Abstract as the very last thing. You may sketch it at the beginning, but then always finalize it at the end.}
 \end{abstract}
 
-\IEEEkeywords
+\begin{IEEEkeywords}
 Neural Networks, Convolutional Neural Networks, Generative Adversarial Networks, Symbolic-Domain Music
-\endIEEEkeywords
+\end{IEEEkeywords}
 
 
 \input{Intro}

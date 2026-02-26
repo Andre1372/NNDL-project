@@ -22,10 +22,11 @@ These changes aim to improve the quality of the game played by Generator and Dis
     \item WGAN-GP (Wasserstein GAN - Gradient Penalty): loss is modified to help longer and more stable training
     \item Residual Units: The generator is enriched with residual units to provide more direct flow of the gradient.
     \item Critic structure: the structure of the critic is improved to enable more effective feature extraction.
-    \item Da aggiungere
+    \item Minibatch Standard Deviation: the critic is enriched with a minibatch standard deviation layer which provides statistical information about the produced music.
 \end{itemize}
 
 In the paper we follow this structure.
 In Section II we describe the base model we started from, in section III we explain the general processing pipeline.
 In Section IV we describe the dataset we used and the preprocessing techniques we adopted.
 In Section V we explain our model and we conclude in Section VI showing the results we obtained.
+Finally, some final remarks are provided in Section VII.
