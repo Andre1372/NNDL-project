@@ -2,3 +2,26 @@
 
 \section{Results}
 \label{sec:results}
+
+The results we show span the various architectures and methods we tried during the course of the project.
+
+\subsection{Baseline Model with BCE loss}
+In this first experiment we trained the baseline model with BCE loss. 
+In \textbf{inserire figura} we show the curves of the accuracy of the Discriminator. We can see that after just a few epochs this curve directly went to 1, meaniing that the Generator was never able to produce valid bars of music.
+The most delayed curve is the one corresponding to the introduction of the residual layers. Here the accuracy was able to stay around 0.5 for a few epochs, but then eventually collapsed to 1. Here, the musi produced was completely random.
+
+\subsection{Improved Model with WGAN-GP loss}
+The next step was the introduction of the WGAN-GP loss. Now, additionally to the generator and critic losses, we also tracked the \textit{Wasserstein distance estimation} and the \textit{feature matching loss}.
+
+The idea of this metric is that it should slowly decrease and stabilise towards zero, indicating indistinguishable distributions. Too high values indicate a too strong Critic, while too low values may indicate mode collapse, as the Critic is assigning too high values to the generated music
+
+Regarding the feature matching loss, we first started with a weight of $5.0$, but gradually decrised to $0.1$ as we noticed that high values were favoring the model in reproducing average dataset statistics over diverse music, always leading to similar patterns (mode collapse).
+This means that in. the last trainings this metric was less used.
+
+\subsection{Improved Critic with minibatch std}
+
+At this point, even if the game seemed more balanced, the Genrator was always able to produce music that fooled the Discriminator, leading to an early mode collapse.
+We then tried to refine the Critic's architecture. We introduced a deeper network, adding the stages we explained in \ref{sec:model_architecture}, with the objective of allowing it to extract more complex features from the music.
+Additionally, to force the Generatore to produce more diverse music, we tried adding the minibatch standard deviation layer. This combination led to a more active learning curve regarding the Generator and Discriminator losses.
+
+The result is then a music that seems to really be conditioned on the underlying chord progression, with no mode collapse or random note generation, as can be seen in \textbf{inserire figura}.
