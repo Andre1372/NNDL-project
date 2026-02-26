@@ -27,7 +27,7 @@ Finally, the Critic is composed of four convolutional layers, with filters of sh
 \subsection{Wasserstein Loss and Gradient Penalty}
 \label{sec:wasserstein_loss}
 
-To address the vanishing gradient problem, we adopted the Wasserstein GAN with Gradient Penalty (WGAN-GP) as explained in \cite{gulrajani2017improved}.
+To address the vanishing gradient problem, we adopted the Wasserstein GAN with Gradient Penalty (WGAN-GP) as explained in \cite{Gulrajani-2017}.
 The idea is to minimize the Wasserstein distance between the real distribution $P_r$ and the generated distribution $P_g$.
 This distance is estimated via a 1-Lipschitz function $D$ (the Critic):
 \begin{equation}
@@ -63,15 +63,16 @@ Note that $\hat{x}$ is a sampled taken from a random interpolation between real 
 The training was influenced mainly by three hyperparameters:
 \begin{enumerate}
     \item \textbf{Gradient penalty coefficient ($\lambda$):} This parameter was never modified and was always set to $10.0$ as in the original paper.
-    \item \textbf{Feature matching weight ($w_{fm}$):} As a validaition metric we also used the Feature Matching Loss. The idea of this metrich is to force the Generator to produce music that matches the statistics of the real data, as perceived by the Critic's intermediate layers. It is used to modify the total loss of the Generator, as:
+    \item \textbf{Feature matching weight ($w_{fm}$):} As a validation metric we also used the Feature Matching Loss. The idea of this metric is to force the Generator to produce music that matches the statistics of the real data, as perceived by the Critic's intermediate layers. It is used to modify the total loss of the Generator:
     \begin{equation}
         \begin{split}
-            L_G = & \underbrace{-\mathbb{E}_{\tilde{x} \sim P_g}[D(\tilde{x})]}_{L_{adv}} \\
-                  & + w_{fm} \cdot \underbrace{\| \mathbb{E}_{x \sim P_r} [f(x)] - \mathbb{E}_{\tilde{x} \sim P_g} [f(\tilde{x})] \|_2^2}_{L_{fm}}
+            L_G &= L_{adv} + w_{fm} \cdot L_{fm} \\
+            \text{where } L_{adv} &= -\mathbb{E}_{\tilde{x} \sim P_g}[D(\tilde{x})] \\
+            L_{fm} &= \| \mathbb{E}_{x \sim P_r} [f(x)] - \mathbb{E}_{\tilde{x} \sim P_g} [f(\tilde{x})] \|_2^2
         \end{split}
     \end{equation}
-    where $f(\cdot)$ represents the feature extractions from the Critic's convolutional layers and $w_{fm}$ acts is the \textit{feature matching weigth}.
-    Varying this parameter allowes us to control between statistical accuracy and melodic variety.
+    where $f(\cdot)$ represents the feature extractions from the Critic's convolutional layers and $w_{fm}$ is the \textit{feature matching weight}.
+    Varying this parameter allows us to control the balance between statistical accuracy and melodic variety.
     \item \textbf{Number of critic steps per generator step ($n_c$):} This parameter was fundamental after the change of loss function and critic structure, as it allowed us to balance the training of the two networks. We noticed that a value between 3 and 5 was optimal for the training, to allow the critic to learn enough to provide useful gradients to the generator, which otherwise tended to collapse
 \end{enumerate}
 \label{sec:hyperparameter_tuning}
