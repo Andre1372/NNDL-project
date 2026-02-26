@@ -2,21 +2,19 @@
 
 \section{Introduction}
 \label{sec:introduction}
-
-The task of generating music is a frontier in Artificial Intelligence, since it poses the challenge of training a network to be creative, but with the rigid constraints imposed by music theory.
-While some architectures are already capable of generating technically correct sequences, capturing the key points of realistic, human-like compsitions, remains an interesting topic.
-This is a praticularly interesting problem if seen in the scenario of creating assistive tools for composers: both experienced and non experienced ones would benefit by these tools in order to improve creativity and exploration of genres.
-What we propose is an architecture that aims no only to model the placement of notes, but also the evolution of the themaic they represent.
-In music generation, coherence is the main objective.
-That's why a simple RNN architecture seems to be the most tappropriate solution, as it's structure aims at learning sequences in order to predict the next values.
-However, MidiNet \cite{Yang-2017} showed that convolutional GANs can overcome the issue.
-The main problem is that in this particular configuration, the discriminator tends to be better than the generator, rapidly reaching a high and stable accuracy.
-The network that we propose tries to enhance the capabilities of MidiNet by adding to the generation process a set of residual layers unit that should help in learning long-term relations.
-Additionally, as mentioned in MidiNet paper, to avoid the vanishing gradient problem, we changed the loss function from a conventional cross-entropy to a Wasserstein loss, and in particular we chose the version that uses gradient penalty \cite{Gulrajani-2017, Arjovsky-2017}.
-In this scenario the Discriminator works as a Critic, which assigns a score of realism (not a probability) to the generated music.
-Finally, we also modified the critic network with an improved set of convolutional layers, in order to improve its capability of extracting the relevant features from the music.
-These changes aim to improve the quality of the game played by Generator and Discriminator, forcing more balanced capabilities to both the structures, which should eventually lead to a more realistic result.
-
+The task of generating music is a frontier in Artificial Intelligence, since it poses the challenge of training a network to be creative, but with the rigid constraints imposed by music theory. 
+While some architectures are already capable of generating technically correct sequences, capturing the key points of realistic, human-like compositions remains an interesting challenge. 
+This is a particularly interesting problem if seen in the scenario of creating assistive tools for composers: both experienced and inexperienced musicians would benefit from these tools in order to improve creativity and exploration of genres.
+What we propose is an architecture that aims not only to model the placement of notes, but also the evolution of the themes they represent. 
+In music generation, coherence is the main objective. 
+For this reason, a simple RNN architecture seems to be the most appropriate solution, as its structure aims at learning sequences in order to predict the next values. 
+However, MidiNet \cite{Yang-2017} showed that convolutional GANs can overcome the issue. 
+The main problem is that in this particular configuration, the discriminator tends to outperform the generator, rapidly reaching a high and stable accuracy.
+The network that we propose tries to enhance the capabilities of MidiNet by adding to the generation process a set of residual units that should help in learning long-term relations. 
+Additionally, as mentioned in the MidiNet paper, to avoid the vanishing gradient problem, we changed the loss function from a conventional cross-entropy to a Wasserstein loss, specifically choosing the version that uses gradient penalty \cite{Gulrajani-2017, Arjovsky-2017}. 
+In this scenario, the Discriminator works as a Critic, which assigns a score of realism (not a probability) to the generated music. 
+Finally, we also modified the critic network with an improved set of convolutional layers, to enhance its capability of extracting the relevant features from the music. 
+These changes aim to improve the quality of the game played by the Generator and Discriminator, forcing more balanced capabilities in both structures, which should eventually lead to a more realistic result.
 \textbf{Summary of contributions:}
 \begin{itemize}
     \item WGAN-GP (Wasserstein GAN - Gradient Penalty): loss is modified to help longer and more stable training
