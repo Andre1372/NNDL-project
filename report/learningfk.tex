@@ -17,62 +17,79 @@
 \subsection{Model Architecture}
 \label{sec:model_architecture}
 
-The noise given as inpute to the Generator $G$ is first processed throught two fully-connected layers, of $1024$ and $512$ neurons respectively, and then reshaped in a tensor of shape $(1, 256, 1, 2)$.
-This is then followed by four convolutional layers, where at each stage a chord embedding $c \in \mathbb{R}^{12}$ is concatenated to the feature maps. The first three layers use filters of shape $(1, 2)$ and stride $2$, doubling the temporal dimesion at each step. To avoid vanishing gradients and ensure more stability, we integrated a Residual Block after each upsampling layer.
-Finally, a transposed convolution with kernel $128 \times 1$ followed by a sigmoid activation procues the final bar of shape $128 \times 16$.
+The random noise vector, provided as input to the Generator $G$, is first processed through two fully-connected layers of $1024$ and $512$ neurons, respectively, and then reshaped into a tensor of shape $1 \times 256 \times 1 \times 2$.
+This is followed by four convolutional layers.
+At each stage, a chord embedding vector $\bm{c} \in \mathbb{R}^{12}$ is concatenated with the feature maps.
+The first three layers use filters of shape $1 \times 2$ with a stride of $2$, effectively doubling the temporal dimension at each step.
+To mitigate the vanishing gradient problem and ensure training stability, we integrated a Residual Block after each upsampling layer.
+Finally, a transposed convolution with a $128 \times 1$ kernel, followed by a sigmoid activation function, produces the final bar of shape $128 \times 16$.
 
-The Conditioner stricly follows the structure described in \cite{Yang-2017}. The aim is to enforce temporal continuity by conditioning the Generator on the previous bar. Its structure mirrors the one of the Generator. The output of each layer is concatenated with the corresponding Generator step along with its upsampling path.
+The Conditioner follows the structure described in \cite{Yang-2017}.
+Its primary objective is to enforce temporal continuity by conditioning the Generator on the previously generated bar.
+Structurally, it mirrors the Generator.
+The output of each layer in the Conditioner is concatenated with the corresponding feature maps in the Generator across its upsampling path.
 
-Finally, the Critic is composed of four convolutional layers, with filters of shape $(4, 4)$ and stride $2$. The idea is to progressiveli extract features from the input bar, reducing spatial dimension from $128 \times 16$ to $1 \times 1$ with $256$ channels. Additnionally, we included a Minibatch Standard Deviation layer after the final convolutional stage. Its aim is to provide the network with a statistical information about the batch diversity, resulting in a scalar that is concatenated with the extracted features. These are then flattened, concatenated to the chord embedding and passed through a final fully connected layer, which outputs a single scalar value. Here we removed the Sigmoid activation, as it was not needed for the loss function we used.
+The Critic is composed of four convolutional layers with filters of shape $4 \times 4$ and a stride of $2$.
+The idea is to progressively extract features from the input bar, reducing the spatial dimensions from $128 \times 16$ to a $1 \times 1$ representation with $256$ channels.
+Additionally, the minibatch standard deviation is included after the final convolutional stage.
+The resulting tensor is flattened, concatenated with the chord embedding $\bm{c}$, and subsequently passed through a fully connected layer that outputs a single scalar value.
+Notably, the standard sigmoid activation at the output of the Critic is omitted, as it is incompatible with the chosen loss function.
+
 \subsection{Wasserstein Loss and Gradient Penalty}
 \label{sec:wasserstein_loss}
 
-To address the vanishing gradient problem, we adopted the Wasserstein GAN with Gradient Penalty (WGAN-GP) as explained in \cite{Gulrajani-2017}.
+To address the vanishing gradient problem, we adopted the Wasserstein GAN with Gradient Penalty (WGAN-GP) \cite{Gulrajani-2017}.
 The idea is to minimize the Wasserstein distance between the real distribution $P_r$ and the generated distribution $P_g$.
 This distance is estimated via a 1-Lipschitz function $D$ (the Critic):
 \begin{equation}
-    W(P_r, P_g) = \sup_{\|D\|_L \leq 1} \mathbb{E}_{x \sim P_r}[D(x)] - \mathbb{E}_{\tilde{x} \sim P_g}[D(\tilde{x})]
+    W(P_r, P_g) = \sup_{\|D\|_L \leq 1} \mathbb{E}_{\bm{x} \sim P_r}[D(\bm{x})] - \mathbb{E}_{\tilde{\bm{x}} \sim P_g}[D(\tilde{\bm{x}})],
 \end{equation}
-where $D(x)$ is the scalar output of the Critic, that can be seen as a score given to the generated music.
+where $D(\bm{x})$ is the scalar output of the Critic, which can be interpreted as a score assigned to the input sample $\bm{x}$.
 
-The losses for generator and Critic are computed as:
-    
+The loss functions for the Critic, $L_D$, and the Generator, $L_G$, are formulated as
 \begin{equation}
-    L_D = \mathbb{E}_{\tilde{x} \sim P_g}[D(\tilde{x})] - \mathbb{E}_{x \sim P_r}[D(x)]
+    L_D = \mathbb{E}_{\tilde{\bm{x}} \sim P_g}[D(\tilde{\bm{x}})] - \mathbb{E}_{\bm{x} \sim P_r}[D(\bm{x})]
 \end{equation}
+and
 \begin{equation}
-    L_G = -\mathbb{E}_{\tilde{x} \sim P_g}[D(\tilde{x})]
+    L_G = -\mathbb{E}_{\tilde{\bm{x}} \sim P_g}[D(\tilde{\bm{x}})],
 \end{equation}
+respectively.
+By minimizing $L_D$, the Critic learns to provide an increasingly accurate estimation of the Wasserstein distance.
+On the other hand, by minimizing $L_G$, the Generator learns to produce music that receives higher scores, effectively pushing $P_g$ closer to $P_r$.
 
-By minimizing $L_D$ the Critic learns to provide an increasingly acurate estimation of the Wasserstein distance. On the other hand, by maximizing $L_G$ the Generator learns to produce music that receives higher scores, effectively pushing $P_g$ closer to $P_r$.
-
-Note that the Sigmoid activation is removed from the output of the Critic, allowing the scores to grow linearly and continuously providing useful gradients.
-
-
-Regarding the Gradient Penalty, it is introduced to enforce the Lipschitz constraint on the Critic, acting as a regularization term on the gradient norm. The total loss of the Critic is then computed as:
+To enforce the 1-Lipschitz constraint on the Critic, a gradient penalty is introduced, acting as a regularization term on the gradient norm.
+The total loss of the Critic is then computed as
 \begin{equation}
     \begin{split}
-        L = & \underbrace{\mathbb{E}_{\tilde{x} \sim P_g}[D(\tilde{x})] - \mathbb{E}_{x \sim P_r}[D(x)]}_{\text{Wasserstein Loss}}                                         \\
-            & + \underbrace{\lambda \mathbb{E}_{\hat{x} \sim P_{\hat{x}}} \left[ \left( \|\nabla_{\hat{x}} D(\hat{x})\|_2 - 1 \right)^2 \right]}_{\text{Gradient Penalty}}
+        L_{D}^{\text{total}} = & \underbrace{\mathbb{E}_{\tilde{\bm{x}} \sim P_g}[D(\tilde{\bm{x}})] - \mathbb{E}_{\bm{x} \sim P_r}[D(\bm{x})]}_{\text{Wasserstein loss}}                                          \\
+                               & + \underbrace{\lambda \mathbb{E}_{\hat{\bm{x}} \sim P_{\hat{\bm{x}}}} \left[ \left( \|\nabla_{\hat{\bm{x}}} D(\hat{\bm{x}})\|_2 - 1 \right)^2 \right]}_{\text{Gradient penalty}},
     \end{split}
 \end{equation}
+where $\hat{\bm{x}}$ is a sample drawn from a random interpolation between real and generated samples.
+It represents a random point along the straight line connecting $\bm{x}$ and $\tilde{\bm{x}}$.
+This regularization forces the Critic to maintain a gradient norm close to $1$ along the trajectories connecting real and generated samples.
 
-Note that $\hat{x}$ is a sampled taken from a random interpolation between real and fake samples. It can be seen as a random point along the line connecting the two distributions. This forces the Discriminator to keep small gradients along the trajectories connecting real and fake samples.
-
-\subsection{Hyperparameter tuning}
-The training was influenced mainly by three hyperparameters:
-\begin{enumerate}
-    \item \textbf{Gradient penalty coefficient ($\lambda$):} This parameter was never modified and was always set to $10.0$ as in the original paper.
-    \item \textbf{Feature matching weight ($w_{fm}$):} As a validation metric we also used the Feature Matching Loss. The idea of this metric is to force the Generator to produce music that matches the statistics of the real data, as perceived by the Critic's intermediate layers. It is used to modify the total loss of the Generator:
-    \begin{equation}
-        \begin{split}
-            L_G &= L_{adv} + w_{fm} \cdot L_{fm} \\
-            \text{where } L_{adv} &= -\mathbb{E}_{\tilde{x} \sim P_g}[D(\tilde{x})] \\
-            L_{fm} &= \| \mathbb{E}_{x \sim P_r} [f(x)] - \mathbb{E}_{\tilde{x} \sim P_g} [f(\tilde{x})] \|_2^2
-        \end{split}
-    \end{equation}
-    where $f(\cdot)$ represents the feature extractions from the Critic's convolutional layers and $w_{fm}$ is the \textit{feature matching weight}.
-    Varying this parameter allows us to control the balance between statistical accuracy and melodic variety.
-    \item \textbf{Number of critic steps per generator step ($n_c$):} This parameter was fundamental after the change of loss function and critic structure, as it allowed us to balance the training of the two networks. We noticed that a value between 3 and 5 was optimal for the training, to allow the critic to learn enough to provide useful gradients to the generator, which otherwise tended to collapse
-\end{enumerate}
+\subsection{Hyperparameter Tuning}
 \label{sec:hyperparameter_tuning}
+
+The training dynamics were primarily governed by three key hyperparameters:
+\begin{enumerate}
+    \item \textbf{Gradient penalty coefficient ($\lambda$):} This parameter was kept constant at $10.0$, following the recommendations in \cite{Gulrajani-2017}.
+    \item \textbf{Feature matching weight ($w_{fm}$):} The feature matching loss was employed as an additional objective to encourage the Generator to produce music matching the statistics of the real data, as perceived by the intermediate layers of the Critic. The total loss of the Generator is thus modified as follows:
+          \begin{equation}
+              L_G^{\text{total}} = L_{adv} + w_{fm} \cdot L_{fm},
+          \end{equation}
+          where $L_{adv}$ is the adversarial loss,
+          \begin{equation}
+              L_{adv} = -\mathbb{E}_{\tilde{\bm{x}} \sim P_g}[D(\tilde{\bm{x}})],
+          \end{equation}
+          and $L_{fm}$ is the feature matching loss,
+          \begin{equation}
+              L_{fm} = \left\| \mathbb{E}_{\bm{x} \sim P_r} \left[ f(\bm{x}) \right] - \mathbb{E}_{\tilde{\bm{x}} \sim P_g} \left[ f(\tilde{\bm{x}}) \right] \right\|_2^2.
+          \end{equation}
+          Here, $f(\cdot)$ represents the feature extractions from the Critic's convolutional layers, and $w_{fm}$ is a weighting coefficient. Varying $w_{fm}$ allows for controlling the trade-off between statistical accuracy and melodic variety.
+    \item \textbf{Number of Critic steps per Generator step ($n_c$):} This parameter was fundamental after the change of loss function and critic structure, as it allowed us to balance the training of the two networks.
+          Empirical observations indicated that setting $n_c \in \{3, 4, 5\}$ was optimal.
+          This provides the Critic with sufficient training iterations to deliver informative gradients to the Generator, thereby preventing mode collapse.
+\end{enumerate}

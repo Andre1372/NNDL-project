@@ -7,17 +7,11 @@ To generate coherent symbolic-domain music, our system relies on a pipeline that
 At a high level, the pipeline consists of data ingestion, feature extraction (chords and monophonic melodies), formatting, and adversarial training.
 While the generative architecture and the learning mechanism will be detailed in Section \ref{sec:learning_framework}, this section focuses on the dataset selection and the preprocessing methodologies required to map the MIDI data into effective neural network inputs.
 
-\subsection{Dataset Selection}
+\subsection{Dataset Selection and Input Formatting}
 The dataset chosen to train our model is the Maestro V3.0.0 \cite{Maestro-V3}. This collection provides over 200 hours of virtuosic piano performances, already processed and formatted as MIDI files.
-The primary motivation behind this choice is consistency: the dataset exclusively features piano performances, and the tempo is standardized (120 bpm).
+The primary motivation behind this choice is consistency: the dataset exclusively features piano performances, and the tempo is constant (120 bpm).
 This temporal uniformity is a crucial property, as it allowed us to parse all MIDI files using a constant sampling frequency.
 Consequently, we obtained a homogeneous data distribution that reduces the variance unrelated to the actual musical composition, thereby helping the model to better capture and reproduce the underlying melodic distribution.
-
-To evaluate the Generative Adversarial Network (GAN) rigorously and prevent data leakage, we adopted a hybrid dataset splitting approach built upon this homogeneous corpus:
-\begin{itemize}
-    \item \textbf{Test Set:} Prior to any preprocessing or segmentation, a subset of three complete MIDI files from the Maestro dataset was strictly isolated. These completely unseen tracks are reserved exclusively for the final Conditioned Autoregressive Generation evaluation. Crucially, they provide the priming bar and the ground-truth harmonic progression required to properly constrain the generation process.
-    \item \textbf{Training and Validation Sets:} The remainder of the musical corpus was processed into fixed-length matrices and randomly partitioned into a Training Set (90$\%$) and a Validation Set (10$\%$). The training set is utilized for weight optimization over \textbf{[number of epochs]} epochs. Concurrently, the validation set serves to monitor training stability over time.
-\end{itemize}
 
 Although MIDI files are structured, they are inherently event-based and highly polyphonic, making them unsuitable for direct ingestion into standard convolutional layers.
 Following the guidelines of related works in symbolic music generation \cite{Yang-2017}, we mapped the data into a 2-D matrix (piano roll) representation.
@@ -27,15 +21,26 @@ The entire dataset was sequentially segmented into independent windows of 8 cons
 Within our framework, two bars are considered temporally consecutive only if they belong to the same 8-bar segment.
 To enable the Generator to learn the onset of musical phrases without prior conditioning, the first bar of every segment is intentionally treated as the subsequent bar of an empty (silence) matrix.
 
-\subsection{Feature Extraction and Monophonic Conversion}
-Since our target generative architecture is designed primarily for monophonic melodies conditioned on harmonic contexts, we applied two distinct feature extraction steps to the segments:
+\subsection{Harmonic Feature Extraction}
+Since the Maestro dataset does not provide explicit chord labels, we used a dedicated feature extraction step to capture the underlying chord played.
+First, we computed Chroma features for each bar, aggregating the pitch energy across the 12 pitch classes.
+Then, by comparing the resulting Chroma vectors against predefined templates through cross-correlation, we assigned an integer index (from 0 to 24) to each bar.
+This index efficiently encodes 12 major chords, 12 minor chords, and a silence/no-chord state.
 
+\subsection{Signal Pre-processing}
+Raw piano rolls naturally feature complex polyphony, variable note velocities, and sparse activations.
+Since our target generative architecture is designed primarily to model monophonic melodies conditioned on harmonic contexts, several pre-processing steps were systematically applied to refine the signal, remove secondary artifacts, and enforce continuity:
 \begin{enumerate}
-    \item \textbf{Chord Extraction:} The Maestro dataset does not provide explicit chord labels. To extract the underlying harmonic structure, we computed Chroma features for each bar, aggregating the pitch energy across the 12 pitch classes. By comparing the resulting Chroma vectors against predefined templates through cross-correlation, we assigned an integer index (from 0 to 24) to each bar. This index efficiently encodes 12 major chords, 12 minor chords, and a silence/no-chord state.
-
     \item \textbf{Monophonic Conversion and Prolonging:} The original piano rolls feature complex polyphony and sparse note activations. To extract the main melody, we applied a highest-note priority algorithm: for every time step, only the note with the highest pitch and velocity was retained, explicitly silencing the rest. Furthermore, to prevent the network from generating fragmented, staccato-like outputs, we employed a forward-fill strategy to bridge brief silences. If a time step was empty, the activation of the previous note was prolonged. This artificial continuity enforces legato phrasing, making it easier for the convolutional kernels to learn stable temporal dependencies.
 
     \item \textbf{Binarization and Pitch Clipping:} To focus the learning process on the most musically expressive register and reduce data sparsity, each extracted segment was binarized (setting all non-zero velocities to 1) and pitch-clipped, zeroing out any note outside the $[24, 96]$ range.
 \end{enumerate}
 
 Overall, this extraction and filtering procedure yielded a total of 44,123 valid segments, each formatted as a $128 \times 16$ matrix per bar.
+
+\subsection{Dataset Splitting}
+To evaluate the Generative Adversarial Network (GAN) rigorously and prevent data leakage, we adopted a hybrid dataset splitting approach built upon this homogeneous corpus:
+\begin{itemize}
+    \item \textbf{Test Set:} Prior to any preprocessing or segmentation, a subset of three complete MIDI files from the Maestro dataset was strictly isolated. These completely unseen tracks are reserved exclusively for the final Conditioned Autoregressive Generation evaluation. Crucially, they provide the priming bar and the ground-truth harmonic progression required to properly constrain the generation process.
+    \item \textbf{Training and Validation Sets:} The remainder of the musical corpus was processed into fixed-length matrices and randomly partitioned into a Training Set (90$\%$) and a Validation Set (10$\%$). The training set is utilized for weight optimization over \textbf{[number of epochs]} epochs. Concurrently, the validation set serves to monitor training stability over time.
+\end{itemize}
