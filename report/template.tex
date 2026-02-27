@@ -117,10 +117,10 @@
 
 \begin{abstract}
   In the field of generative AI, the task of music generation is heavily conditioned by the need of training a network that not only provides notes, but is able to produce pieces of music made of a coherent sequence of notes, and may be good for the human ear.
-  Inspired by Midinet \cite{Yang-2017}, our system is a conditioned Generative Adversarial Network (GAN) is enhanced with a set of residual blocks and a dedicated Conditioner network that extracts features from previous bars to ensure temporal continuity.
-  To produce a stable learning process, we adopt a Wasserstein loss with gradient penalty (WGAN-GP), replacing the standard binary cross-entropy. Also, the Critic (as we will call the Discriminator network, due to the new loss function) is enhanched with a Minibatch Standard Deviation layer, which provides information that help in penalizing repetitive outputs.
+  Inspired by Midinet \cite{Yang-2017}, our system is a conditioned Generative Adversarial Network (GAN) enhanced with a set of residual blocks and a dedicated Conditioner network that extracts features from previous bars to ensure temporal continuity.
+  To produce a stable learning process, we adopt a Wasserstein loss with gradient penalty (WGAN-GP), replacing the standard binary cross-entropy. Also, the Critic (as we will call the Discriminator network, due to the new loss function) is enhanced with a Minibatch Standard Deviation layer, which provides information that helps in penalizing repetitive outputs.
   The result is an integration of recurrent memory and convolutional layers that leads to improved thematic coherence.
-  The integration of these systems is used to produce piano music from an underlying chord progression, genrating coherent music.
+  The integration of these systems is used to produce piano music from an underlying chord progression, generating coherent music.
   %\MR{This is an example abstract from a paper we wrote a couple of years ago. I would say an abstract should not be longer than $250$ words. Here, you should briefly state: 
   %\begin{enumerate}
   %\item the technical scenario/field of research and its timeliness/relevance in general (one sentence),
