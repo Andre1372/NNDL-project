@@ -28,7 +28,15 @@ This means that in. the last trainings this metric was less used.
 
 At this point, even if the game seemed more balanced, the Generator was always able to produce music that fooled the Discriminator, leading to an early mode collapse.
 It can be intersting to see how the loss of the generator always seemed to stay close to 0, with the critic loss being the one that fluctuated more. Looking at the produced music, we noticed that this was probably an indication of the Generator producing the same pattern over and over again, a clear signal of mode collapse.
-In \textbf{Inserire figura} is shown the behaviour of the two losses during training with similar but slightly different hyperparameters.
+In \textbf{Inserire figura} is shown the behaviour of the two losses during training.
+
+Additionally, we also tried to produce some music at this point, as shown in Fig.~\ref{fig:piano_roll_collapse}.  The main pattern is clearly a single set of close notes continuously repeated.
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width=\linewidth]{images/piano_roll_collapse.jpeg}
+    \caption{Generated piano roll on one of the test music.}
+    \label{fig:piano_roll_collapse}
+\end{figure}
 
 \subsection{Improved Critic with minibatch std}
 
