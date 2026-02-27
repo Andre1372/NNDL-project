@@ -162,7 +162,7 @@ class Discriminator(nn.Module):
             nn.LeakyReLU(0.2, inplace=True),
         )
         
-        # Minibatch Standard Deviation (to counter mode collapse)
+        # Minibatch Standard Deviation
         self.minibatch_std = MinibatchStdDev()
         
         # Classifier (Fully Connected)
@@ -231,10 +231,11 @@ class PianoGAN(pl.LightningModule):
         return self.generator(z, prev_bars, chord_idx)
 
     def configure_optimizers(self):
-        """ Define the two separate optimizers for Discriminator and Generator. """
-        # Learning Rate del Generatore (più basso per stabilità WGAN)
+        """ Define the two separate optimizers for Discriminator and Generator.
+            Learning rate can be different, ultimately we just set it to the same value for both networks """
+        # Generator Learning Rate
         lr_g = 0.0001
-        # Learning Rate del Discriminatore (più alto per stima Wasserstein ottimale - TTUR)
+        # Critic's Learning Rate
         lr_d = 0.0001
 
         opt_g = torch.optim.RMSprop(self.generator.parameters(), lr=lr_g)
@@ -306,11 +307,11 @@ class PianoGAN(pl.LightningModule):
         # =========================================================================
         
         if batch_idx % self.n_critic == 0:
-            # Forward D su fake per allenare G
+            # train G getting the validity of the fake bars
             fake_validity_g, fake_feats = self.discriminator(fake_bars, chord_idx)
             
             # A. Adversarial Loss
-            # G vuole minimizzare -E[Critic(fake)]
+            # g_loss = -E[Critic(fake)]
             g_loss_adv = -torch.mean(fake_validity_g)
 
             # B. Feature Matching Loss
@@ -341,14 +342,14 @@ class PianoGAN(pl.LightningModule):
         noise = torch.randn(batch_size, self.noise_dim, device=self.device)
         generated_bars, _ = self.generator(noise, prev_bars, chord_idx)
         
-        # Valuta col discriminatore (senza aggiornare gradienti)
+        # critic's evaluation
         fake_validity, fake_feats = self.discriminator(generated_bars, chord_idx)
         real_validity, real_feats = self.discriminator(curr_bars, chord_idx)
         
-        # Calcola W-Distance: E[real] - E[fake]
+        # W-Distance: E[real] - E[fake]
         val_w_dist = torch.mean(real_validity) - torch.mean(fake_validity)
         
-        # Calcola Feature Matching Loss
+        # Feature Matching Loss
         mean_real_f = torch.mean(real_feats, dim=0)
         mean_fake_f = torch.mean(fake_feats, dim=0)
         val_g_fm = torch.mean((mean_real_f - mean_fake_f) ** 2)

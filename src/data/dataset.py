@@ -83,7 +83,7 @@ def process_to_monophonic_continuous(piano_roll: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: Matrice binaria con esattamente una nota per time step.
     """
-    # 1. STRATEGIA "HIGHEST NOTE PRIORITY" (Sezione 4.2.1 del paper)
+    # 1. STRATEGIA "HIGHEST NOTE PRIORITY"
     # Identifichiamo la nota più alta per ogni istante temporale
     h, w = piano_roll.shape
     monophonic_roll = np.zeros_like(piano_roll)
@@ -148,7 +148,7 @@ class MidiPreprocessor:
         # Get piano roll (shape: pitch x time)
         piano_roll = instr.get_piano_roll(fs=fs, times=time_segment)
         
-        # Normalize
+        # Normalize - used for velocity, now removed
         # piano_roll = piano_roll.astype(np.float32) / 127.0   
         
         # Binarize
@@ -229,7 +229,6 @@ class MidiPreprocessor:
 
                         if not self._is_segment_valid(piano_roll): continue
 
-                        # --- ### MODIFICA: ESTRAZIONE ACCORDI ---
                         # Dividiamo il segmento (128 steps) in 8 battute da 16 steps
                         segment_chords = []
                         for b in range(BARS_PER_SEGMENT):
@@ -243,16 +242,13 @@ class MidiPreprocessor:
                         
                         segment_chords = np.array(segment_chords, dtype=np.uint8)
                         
-                        # --- ### MODIFICA: MONOPHONIC CONTINUOUS ---
                         # Applichiamo la trasformazione monofonica DOPO aver identificato gli accordi
                         piano_roll = process_to_monophonic_continuous(piano_roll)
-                        # ----------------------------------------
 
                         # Save segment to disk
                         save_name = f"{midi_file_path.parent.stem}_{midi_file_path.stem}_{segment_global_idx}.npz"
                         save_path = self.output_dir / save_name
                         
-                        # --- ### MODIFICA: SALVATAGGIO COMPRESSO ---
                         # Invece di sparse.save_npz, usiamo np.savez_compressed
                         # per salvare sia il piano roll (come sparse) che gli accordi.
                         sparse_matrix = sparse.csr_matrix(piano_roll.astype(np.float32))
@@ -263,7 +259,6 @@ class MidiPreprocessor:
                             chords=segment_chords,    # Chiave 'chords'
                             bpm=bpm
                         )
-                        # -------------------------------------------
 
                         # Store metadata
                         results_meta.append({
